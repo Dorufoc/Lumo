@@ -625,3 +625,104 @@ CREATE INDEX IF NOT EXISTS idx_devices_workspace_status ON devices(workspace_id,
 -- review_events 新索引（与 0001 既有 idx_review_events_card_created 不同名，避免冲突）。
 CREATE INDEX IF NOT EXISTS idx_review_events_user_due ON review_events(user_id, due_at);
 CREATE INDEX IF NOT EXISTS idx_review_events_card_reviewed ON review_events(review_card_id, reviewed_at);
+
+-- ============ 6.1.1 全文检索（FTS5）============
+-- FTS5 虚拟表与同步触发器（追加于 0005，随迁移同事务建立；索引生命周期与源表一致）。
+-- 设计要点：
+--   1) 业务主键为 TEXT 而 FTS5 内置 rowid 必须为 INTEGER，故业务 UUID 存入 UNINDEXED 列，
+--      rowid 由 FTS5 自动分配；DELETE/过滤按 UNINDEXED 业务列定位。
+--   2) unicode61 分词器将整段连续 CJK 视为一个 token，2 字查询（如"量子"）无法命中；
+--      因此对中文内容额外生成逐字空格分隔的 *_cjk 列（每个汉字独立 token），
+--      查询端对 CJK 词同样逐字空格后再 MATCH（见 repository.SearchFTS），即可实现子串命中。
+--   3) 软删除（deleted_at）与物理删除的笔记/卡片经触发器从索引移除。
+--   4) documents_fts 无触发器：文档正文经分块后由应用层写入（DocumentService.indexDocument）。
+
+CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+  note_id UNINDEXED, workspace_id UNINDEXED,
+  title, body_md, title_cjk, body_cjk,
+  tokenize = 'unicode61 remove_diacritics 2'
+);
+
+CREATE TRIGGER trg_notes_fts_insert AFTER INSERT ON notes
+BEGIN
+  INSERT INTO notes_fts(note_id, workspace_id, title, body_md, title_cjk, body_cjk)
+  WITH t AS (SELECT NEW.title AS title, NEW.body_md AS body)
+  SELECT NEW.id, NEW.workspace_id, t.title, t.body,
+    (SELECT COALESCE(group_concat(CASE WHEN substr(t.title, i, 1) BETWEEN '一' AND '鿿' THEN ' ' || substr(t.title, i, 1) ELSE substr(t.title, i, 1) END, ''), '') FROM (WITH RECURSIVE nums(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM nums WHERE i < length(t.title)) SELECT i FROM nums)),
+    (SELECT COALESCE(group_concat(CASE WHEN substr(t.body, i, 1) BETWEEN '一' AND '鿿' THEN ' ' || substr(t.body, i, 1) ELSE substr(t.body, i, 1) END, ''), '') FROM (WITH RECURSIVE nums(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM nums WHERE i < length(t.body)) SELECT i FROM nums))
+  FROM t;
+END;
+
+CREATE TRIGGER trg_notes_fts_update AFTER UPDATE OF title, body_md, deleted_at ON notes
+BEGIN
+  DELETE FROM notes_fts WHERE note_id = OLD.id;
+  INSERT INTO notes_fts(note_id, workspace_id, title, body_md, title_cjk, body_cjk)
+  WITH t AS (SELECT NEW.title AS title, NEW.body_md AS body)
+  SELECT NEW.id, NEW.workspace_id, t.title, t.body,
+    (SELECT COALESCE(group_concat(CASE WHEN substr(t.title, i, 1) BETWEEN '一' AND '鿿' THEN ' ' || substr(t.title, i, 1) ELSE substr(t.title, i, 1) END, ''), '') FROM (WITH RECURSIVE nums(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM nums WHERE i < length(t.title)) SELECT i FROM nums)),
+    (SELECT COALESCE(group_concat(CASE WHEN substr(t.body, i, 1) BETWEEN '一' AND '鿿' THEN ' ' || substr(t.body, i, 1) ELSE substr(t.body, i, 1) END, ''), '') FROM (WITH RECURSIVE nums(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM nums WHERE i < length(t.body)) SELECT i FROM nums))
+  FROM t WHERE NEW.deleted_at IS NULL;
+END;
+
+CREATE TRIGGER trg_notes_fts_delete AFTER DELETE ON notes
+BEGIN
+  DELETE FROM notes_fts WHERE note_id = OLD.id;
+END;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS flashcards_fts USING fts5(
+  flashcard_id UNINDEXED, workspace_id UNINDEXED,
+  front, back, front_cjk, back_cjk,
+  tokenize = 'unicode61 remove_diacritics 2'
+);
+
+CREATE TRIGGER trg_flashcards_fts_insert AFTER INSERT ON flashcards
+BEGIN
+  INSERT INTO flashcards_fts(flashcard_id, workspace_id, front, back, front_cjk, back_cjk)
+  WITH t AS (SELECT NEW.front AS front, NEW.back AS back)
+  SELECT NEW.id, NEW.workspace_id, t.front, t.back,
+    (SELECT COALESCE(group_concat(CASE WHEN substr(t.front, i, 1) BETWEEN '一' AND '鿿' THEN ' ' || substr(t.front, i, 1) ELSE substr(t.front, i, 1) END, ''), '') FROM (WITH RECURSIVE nums(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM nums WHERE i < length(t.front)) SELECT i FROM nums)),
+    (SELECT COALESCE(group_concat(CASE WHEN substr(t.back, i, 1) BETWEEN '一' AND '鿿' THEN ' ' || substr(t.back, i, 1) ELSE substr(t.back, i, 1) END, ''), '') FROM (WITH RECURSIVE nums(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM nums WHERE i < length(t.back)) SELECT i FROM nums))
+  FROM t;
+END;
+
+CREATE TRIGGER trg_flashcards_fts_update AFTER UPDATE OF front, back, deleted_at ON flashcards
+BEGIN
+  DELETE FROM flashcards_fts WHERE flashcard_id = OLD.id;
+  INSERT INTO flashcards_fts(flashcard_id, workspace_id, front, back, front_cjk, back_cjk)
+  WITH t AS (SELECT NEW.front AS front, NEW.back AS back)
+  SELECT NEW.id, NEW.workspace_id, t.front, t.back,
+    (SELECT COALESCE(group_concat(CASE WHEN substr(t.front, i, 1) BETWEEN '一' AND '鿿' THEN ' ' || substr(t.front, i, 1) ELSE substr(t.front, i, 1) END, ''), '') FROM (WITH RECURSIVE nums(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM nums WHERE i < length(t.front)) SELECT i FROM nums)),
+    (SELECT COALESCE(group_concat(CASE WHEN substr(t.back, i, 1) BETWEEN '一' AND '鿿' THEN ' ' || substr(t.back, i, 1) ELSE substr(t.back, i, 1) END, ''), '') FROM (WITH RECURSIVE nums(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM nums WHERE i < length(t.back)) SELECT i FROM nums))
+  FROM t WHERE NEW.deleted_at IS NULL;
+END;
+
+CREATE TRIGGER trg_flashcards_fts_delete AFTER DELETE ON flashcards
+BEGIN
+  DELETE FROM flashcards_fts WHERE flashcard_id = OLD.id;
+END;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS questions_fts USING fts5(
+  question_id UNINDEXED, question_version_id UNINDEXED, workspace_id UNINDEXED,
+  body, body_cjk,
+  tokenize = 'unicode61 remove_diacritics 2'
+);
+
+-- 题目版本不可变：仅 INSERT 触发器（题干 + 选项文本 + 解析合并为可检索正文）。
+CREATE TRIGGER trg_questions_fts_insert AFTER INSERT ON question_versions
+BEGIN
+  INSERT INTO questions_fts(question_id, question_version_id, workspace_id, body, body_cjk)
+  WITH b AS (SELECT COALESCE(json_extract(NEW.payload_json, '$.stem'), '') || ' ' ||
+       COALESCE((SELECT group_concat(json_extract(value, '$.text'), ' ') FROM json_each(NEW.payload_json, '$.options')), '') || ' ' ||
+       COALESCE(json_extract(NEW.payload_json, '$.analysis'), '') AS body)
+  SELECT NEW.question_id, NEW.id,
+    (SELECT workspace_id FROM questions WHERE id = NEW.question_id),
+    b.body,
+    (SELECT COALESCE(group_concat(CASE WHEN substr(b.body, i, 1) BETWEEN '一' AND '鿿' THEN ' ' || substr(b.body, i, 1) ELSE substr(b.body, i, 1) END, ''), '') FROM (WITH RECURSIVE nums(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM nums WHERE i < length(b.body)) SELECT i FROM nums))
+  FROM b;
+END;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
+  chunk_id UNINDEXED, document_id UNINDEXED, workspace_id UNINDEXED,
+  body, body_cjk,
+  tokenize = 'unicode61 remove_diacritics 2'
+);

@@ -157,13 +157,18 @@ func (r *Repo) SoftDeleteDocument(ctx context.Context, wsID, id string, version 
 }
 
 // ReplaceDocumentChunks 重建文档分块（先删后插）。
-func (r *Repo) ReplaceDocumentChunks(ctx context.Context, docID string, chunks []*DocumentChunkRow) error {
+// ReplaceDocumentIndex 重建文档分块与全文索引（同一事务：先删后插，保证 chunk 与 FTS 一致）。
+// documents_fts 无触发器，正文经分块后在此写入（body_cjk 由 SpaceCJK 逐字空格化）。
+func (r *Repo) ReplaceDocumentIndex(ctx context.Context, docID, workspaceID string, chunks []*DocumentChunkRow) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return normalizeErr(err)
 	}
 	defer tx.Rollback()
 	if _, err := tx.ExecContext(ctx, `DELETE FROM document_chunks WHERE document_id = ?`, docID); err != nil {
+		return normalizeErr(err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM documents_fts WHERE document_id = ?`, docID); err != nil {
 		return normalizeErr(err)
 	}
 	for _, c := range chunks {
@@ -175,8 +180,20 @@ func (r *Repo) ReplaceDocumentChunks(ctx context.Context, docID string, chunks [
 			c.StartOffset, c.EndOffset, c.EmbeddingVersion, c.VectorRef); err != nil {
 			return normalizeErr(err)
 		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO documents_fts (chunk_id, document_id, workspace_id, body, body_cjk)
+			VALUES (?, ?, ?, ?, ?)`,
+			c.ID, c.DocumentID, workspaceID, c.TextRef, SpaceCJK(c.TextRef)); err != nil {
+			return normalizeErr(err)
+		}
 	}
 	return tx.Commit()
+}
+
+// DeleteDocumentFTS 删除文档的全部全文索引行（软删除时清理，避免已删除文档被检索到）。
+func (r *Repo) DeleteDocumentFTS(ctx context.Context, docID string) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM documents_fts WHERE document_id = ?`, docID)
+	return normalizeErr(err)
 }
 
 // ChunkRow 是检索用分块行。

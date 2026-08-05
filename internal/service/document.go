@@ -203,6 +203,9 @@ func (d *DocumentService) DocumentDelete(ctx context.Context, req DocumentDelete
 	if err := d.s.Repo.SoftDeleteDocument(ctx, req.WorkspaceID, req.DocumentID, req.Version); err != nil {
 		return nil, err
 	}
+	if err := d.s.Repo.DeleteDocumentFTS(ctx, req.DocumentID); err != nil {
+		return nil, err
+	}
 	d.s.audit(ctx, req.WorkspaceID, "document.delete", "document", req.DocumentID, nil)
 	return &DeleteResult{Deleted: true, DeletedAt: Now()}, nil
 }
@@ -489,7 +492,7 @@ func (d *DocumentService) indexDocument(ctx context.Context, doc *repository.Doc
 			}
 		}
 	}
-	return d.s.Repo.ReplaceDocumentChunks(ctx, doc.ID, rows)
+	return d.s.Repo.ReplaceDocumentIndex(ctx, doc.ID, doc.WorkspaceID, rows)
 }
 
 // copyToAttachments 复制附件到工作区目录。
