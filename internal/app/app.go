@@ -190,6 +190,7 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 
 	// AI 流式事件（GET /api/v1/events）
 	srv.RegisterSSE(a.Agent.Events)
+	srv.RegisterUserSSE(a.Agent.UserEvents)
 
 	// 文件下载（导出/备份结果，仅限 exports 与 uploads 目录）
 	srv.Mux().HandleFunc("/api/v1/files", a.handleFileDownload)

@@ -25,12 +25,18 @@ type SSEBus interface {
 	Subscribe(sessionID string) (<-chan agent.Event, func())
 }
 
+// UserSSEBus 是用户级事件流订阅接口（由 agent.UserEventBus 实现）。
+type UserSSEBus interface {
+	SubscribeUser(userID string) (<-chan agent.Event, func())
+}
+
 // Server 组装 HTTP 服务。
 type Server struct {
 	router  map[string]Handler
 	uploads map[string]UploadHandler
 	mux     *http.ServeMux
 	sseBus  SSEBus
+	userBus UserSSEBus
 }
 
 // NewServer 创建空服务。
@@ -49,17 +55,18 @@ func NewServer() *Server {
 // RegisterSSE 注册事件总线（AI 流式推送）。
 func (s *Server) RegisterSSE(bus SSEBus) { s.sseBus = bus }
 
-// sse 处理 GET /api/v1/events?request_id=..&session_id=.. 长连接流。
+// RegisterUserSSE 注册用户级事件总线（领域事件推送）。
+func (s *Server) RegisterUserSSE(bus UserSSEBus) { s.userBus = bus }
+
+// sse 处理 GET /api/v1/events 长连接流。
+// 支持 session_id（Agent 流式事件）或 user_id（用户级领域事件），至少其一；
+// 两者并存时 user_id 优先，session_id 回退。
 func (s *Server) sse(w http.ResponseWriter, r *http.Request) {
-	if s.sseBus == nil {
-		writeJSON(w, http.StatusServiceUnavailable, EnvelopeError(
-			domain.InvalidState("事件流未启用"), requestID(r, nil)))
-		return
-	}
+	userID := r.URL.Query().Get("user_id")
 	sessionID := r.URL.Query().Get("session_id")
-	if sessionID == "" {
+	if userID == "" && sessionID == "" {
 		writeJSON(w, http.StatusBadRequest, EnvelopeError(
-			domain.InvalidArg("session_id 必填"), requestID(r, nil)))
+			domain.InvalidArg("session_id 或 user_id 必填"), requestID(r, nil)))
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -72,8 +79,25 @@ func (s *Server) sse(w http.ResponseWriter, r *http.Request) {
 			domain.InvalidState("流式响应不受支持"), requestID(r, nil)))
 		return
 	}
-	ch, unsub := s.sseBus.Subscribe(sessionID)
+	var ch <-chan agent.Event
+	var unsub func()
+	if userID != "" {
+		if s.userBus == nil {
+			writeJSON(w, http.StatusServiceUnavailable, EnvelopeError(
+				domain.InvalidState("用户事件流未启用"), requestID(r, nil)))
+			return
+		}
+		ch, unsub = s.userBus.SubscribeUser(userID)
+	} else {
+		if s.sseBus == nil {
+			writeJSON(w, http.StatusServiceUnavailable, EnvelopeError(
+				domain.InvalidState("事件流未启用"), requestID(r, nil)))
+			return
+		}
+		ch, unsub = s.sseBus.Subscribe(sessionID)
+	}
 	defer unsub()
+	flusher.Flush() // 立即发送响应头，客户端立刻确认流已打开
 	// 心跳
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()

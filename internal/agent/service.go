@@ -63,6 +63,7 @@ type LLMFactory func() (provider.LLMProvider, error)
 type Service struct {
 	Repo       *repository.Repo
 	Events     *Bus
+	UserEvents *UserEventBus
 	LLMFactory LLMFactory
 
 	mu      sync.Mutex
@@ -72,9 +73,10 @@ type Service struct {
 // New 构造 Agent 服务。
 func New(repo *repository.Repo) *Service {
 	return &Service{
-		Repo:    repo,
-		Events:  NewBus(),
-		cancels: map[string]context.CancelFunc{},
+		Repo:       repo,
+		Events:     NewBus(),
+		UserEvents: NewUserEventBus(repo),
+		cancels:    map[string]context.CancelFunc{},
 	}
 }
 

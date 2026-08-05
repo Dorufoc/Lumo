@@ -90,11 +90,16 @@ export interface StreamHandlers {
   onError?: (err: ApiError, meta: { request_id: string; session_id: string }) => void
 }
 
-/** 打开 SSE 流：GET /api/v1/events?request_id=...&session_id=... */
+/** 打开 SSE 流：GET /api/v1/events?request_id=...&session_id=... 或 ?user_id=...
+ *  传 sessionId 订阅 Agent 会话流式事件；传 userId 订阅用户级领域事件
+ *  （report:ready / exam:auto_submitted / flashcard:due / reminder:triggered /
+ *   grading:appeal / sync:extended / grading:updated）。两者并存时后端以 user_id 优先。
+ */
 export function openEventStream(
   requestId: string,
   sessionId: string,
   handlers: StreamHandlers,
+  userId?: string,
 ): { close: () => void } {
   const controller = new AbortController()
   let lastSeq = -1
@@ -130,7 +135,10 @@ export function openEventStream(
 
   const run = async () => {
     try {
-      const res = await fetch(`${BASE}/events?request_id=${encodeURIComponent(requestId)}&session_id=${encodeURIComponent(sessionId)}`, {
+      const params = new URLSearchParams({ request_id: requestId })
+      if (sessionId) params.set('session_id', sessionId)
+      if (userId) params.set('user_id', userId)
+      const res = await fetch(`${BASE}/events?${params}`, {
         signal: controller.signal,
         headers: { Accept: 'text/event-stream' },
       })
