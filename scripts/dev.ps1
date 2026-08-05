@@ -1,4 +1,4 @@
-# Lumo AI 一键开发脚本：环境检测 → 依赖安装 → watchdog 启动前后端。
+﻿# Lumo AI 一键开发脚本：环境检测 → 依赖安装 → watchdog 启动前后端。
 #  - 环境检测：自动检测 Go / Node.js / npm / air；缺失时通过 winget 自动安装并写入 PATH（用户级环境变量）
 #  - 后端：air 监控 .go 文件，改动自动重新编译并重启（watchdog 模式，实时生效）
 #  - 前端：npm install 安装依赖后以 npm run dev 启动 vite dev server（HMR 实时热更新）
@@ -12,6 +12,8 @@
 #   -NoBrowser     不自动打开浏览器
 #   -Yes           非交互模式：环境缺失时直接用 winget 安装，不弹出选项询问
 #   -Port <int>    前端 dev server 端口（默认 5173，仅用于浏览器地址与占用检查）
+$args = @()
+
 param(
   [switch]$SkipInstall,
   [switch]$NoBrowser,
@@ -178,6 +180,7 @@ function Test-FrontendDepsReady {
 }
 
 function Test-PortInUse($port) {
+  if (-not $port) { return $false }
   return $null -ne (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue)
 }
 
