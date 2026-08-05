@@ -1,0 +1,27 @@
+# Lumo AI 后端热重载配置（air：https://github.com/air-verse/air）
+# 监控 .go 文件变化 → 自动重新编译并重启后端进程。
+# 由 scripts/dev.ps1 在项目根目录启动 air 读取本配置。
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  # 编译产物放入 tmp 目录，air 负责 kill 旧进程并启动新进程
+  cmd = "go build -o ./tmp/lumo-server.exe ./cmd/app"
+  entrypoint = "./tmp/lumo-server.exe"
+  # 只监控 Go 源码，避免改前端文件触发后端重启
+  include_ext = ["go"]
+  exclude_dir = ["frontend", "tmp", "vendor", "node_modules", ".git", ".codegraph", ".focagent", ".omo", ".reasonix", "dist"]
+  exclude_regex = ["_test\\.go$"]
+  # 文件变化后延迟 500ms 再重启
+  delay = 500
+  # 编译失败时不退出，保留旧进程，修复后自动恢复
+  stop_on_error = false
+  # 变化时先 kill 旧进程再启动新进程
+  kill_old = true
+  log = "air.log"
+
+[log]
+  time = false
+
+[misc]
+  clean_on_exit = true

@@ -3,3 +3,6 @@
 .codegraph/
 .reasonix/
 frontend/node_modules/
+# 开发热重载产物
+tmp/
+air.log

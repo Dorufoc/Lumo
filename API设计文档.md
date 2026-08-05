@@ -192,7 +192,6 @@
 |---|---|---|---|
 | `DashboardGet` | `workspace_id`, `user_id` | `Dashboard` | 今日任务/到期复习/连续天数/近 7 天正确率/薄弱知识点/AI 建议 |
 | `ProviderConfigure` | `workspace_id`, `provider`(`llm`/`embedding`), `kind`(`openai`/`mock`), `base_url`, `api_key`, `model`, `enabled` | `provider_status` | 写入 Provider 配置（密钥仅存本地 secrets 文件，不回读；api_key 留空保留旧值） |
-| `ProviderTest` | `workspace_id`, `provider`, `model` | `ProviderHealth`（`ok`/`latency_ms`/`error`） | 最小探测请求验证连通性 |
 | `ProviderClear` | `workspace_id`, `provider` | `provider_status` | 删除 Provider 配置 |
 | `SyncDeviceRegister` | `device_id`, `device_name`, `platform`, `app_version` | `DeviceStatus` | 设备注册（本地模拟服务端，幂等） |
 | `SyncPush` | `workspace_id` | `PushResult` | 推送本地 pending 变更队列（逐项 `accepted`/`duplicate`/`conflict`，冲突返回冲突副本） |
@@ -336,3 +335,178 @@ Content-Type: application/json
 - 流式事件可取消、可排序，且不泄漏资料全文、密钥和绝对路径。
 - 云同步支持重复投递、分页拉取和逐项冲突结果。
 - API 返回稳定错误码，前端可根据 `retryable` 展示恢复动作。
+
+---
+
+## 7. 扩展 API 契约（V2.1 规划，🔜 P5–P6）
+
+> 与《完整设计文档.md》V2.1 的 4.8–4.24 模块一一对应。所有命令型方法沿用 1.2 统一信封、1.3 通用字段（`workspace_id`/`version`/`idempotency_key`）与 1.4 错误码（含附录 A 新增码）。接口形态沿用 `POST /api/v1/{Method}`。
+
+### 7.1 笔记与标注（4.8）
+
+| 方法 | 请求要点 | 返回 |
+|---|---|---|
+| `NoteCreate` | `kind`, `title`, `body_md`, `source_ref`, `knowledge_ids`, `tags` | `Note` |
+| `NoteUpdate` | `note_id`, `version`, 可编辑字段 | `Note` |
+| `NoteList` | `kind`, `knowledge_id`, `tag`, `keyword`, `cursor`, `limit` | `NotePage` |
+| `NoteDelete` | `note_id`, `version` | `DeleteResult` |
+| `NoteToFlashcard` | `note_id`, `idempotency_key` | `Flashcard` |
+| `AnnotationCreate` | `note_id`, `document_id`, `anchor_hash`, `offset_start/end`, `highlight_color` | `Annotation` |
+
+### 7.2 闪卡（4.9）
+
+| 方法 | 请求要点 | 返回 |
+|---|---|---|
+| `FlashcardCreate` | `source[knowledge|note|document|manual]`, `front`, `back`, `card_type`, `tags` | `Flashcard` |
+| `FlashcardGenerate` | `source_ref`, `idempotency_key` | `Flashcard[]`（错题/笔记批量生成） |
+| `FlashcardListDue` | `due_before`, `limit` | `Flashcard[]` |
+| `FlashcardReview` | `flashcard_id`, `rating[again|hard|good]`, `idempotency_key` | `Flashcard`（服务端返回新间隔） |
+| `FlashcardBatch` | `action[archive|delete|reset]`, `ids[]` | `BatchResult` |
+| `FlashcardImportCsv` | `file_path`, `idempotency_key` | `ImportBatch`（行级错误） |
+| `FlashcardExportAnki` | `idempotency_key` | `ExportResult`（`.apkg`） |
+
+### 7.3 组卷与考试（4.10）
+
+| 方法 | 请求要点 | 返回 |
+|---|---|---|
+| `ExamPaperCreate` | `title`, `config_json`, `idempotency_key` | `ExamPaper` |
+| `ExamPaperAutoGenerate` | `title`, `config{knowledge_ratio, difficulty_dist, count, types}`, `idempotency_key` | `ExamPaper` |
+| `ExamPaperPublish` | `paper_id`, `version` | `ExamPaper` |
+| `ExamStart` | `paper_id`, `idempotency_key` | `Exam`（锁定题目顺序/时长） |
+| `ExamAutoSubmit` | `exam_id` | `ExamResult`（倒计时到期自动提交） |
+| `ExamGetResult` | `exam_id` | `ExamResult`（成绩/复盘/错题入队列） |
+
+### 7.4 打卡、成就与习惯（4.11）
+
+| 方法 | 请求要点 | 返回 |
+|---|---|---|
+| `CheckinCreate` | `idempotency_key` | `Checkin`（`user_id+date` 幂等） |
+| `CheckinMakeup` | `date`（每月限 3 次） | `Checkin` |
+| `AchievementList` | - | `AchievementView`（已解锁/未解锁） |
+| `StreakGet` | - | `Streak`（连续天数/总打卡） |
+
+### 7.5 报告（4.12）
+
+| 方法 | 请求要点 | 返回 |
+|---|---|---|
+| `ReportGenerate` | `period[daily|weekly|monthly]`, `period_start`, `period_end`, `idempotency_key` | `Report`（异步，`report:ready` 事件） |
+| `ReportList` | `period`, `cursor`, `limit` | `ReportPage` |
+| `ReportExport` | `report_id`, `format[pdf|json]` | `ExportResult`（经 `GET /api/v1/files` 下载） |
+| `InsightGet` | `user_id`, `dimension[knowledge|time|trend]` | `Insight` |
+
+### 7.6 专注计时（4.13）
+
+| 方法 | 请求要点 | 返回 |
+|---|---|---|
+| `TimerStart` | `mode[pomodoro|free]`, `planned_minutes`, `task_id`, `idempotency_key` | `TimerSession`（同用户单活动计时） |
+| `TimerEnd` | `session_id`, `interrupt_reason` | `TimerSession` |
+| `TimerStats` | `date_range` | `TimerStats`（时长/轮次/中断率） |
+
+### 7.7 提醒与通知（4.14）
+
+| 方法 | 请求要点 | 返回 |
+|---|---|---|
+| `ReminderUpsert` | `kind`, `rule_json`, `enabled` | `Reminder` |
+| `ReminderTestSend` | `kind` | `TestResult` |
+| `NotificationList` | `unread_only`, `cursor`, `limit` | `NotificationPage` |
+| `NotificationMarkRead` | `ids[]` | `BatchResult` |
+
+### 7.8 收藏与稍后读（4.15）
+
+| 方法 | 请求要点 | 返回 |
+|---|---|---|
+| `FavoriteToggle` | `ref_type`, `ref_id`, `group_name` | `Favorite` |
+| `FavoriteList` | `group_name`, `keyword`, `cursor`, `limit` | `FavoritePage` |
+| `ReadLaterAdd` | `document_id` | `ReadLaterItem` |
+| `ReadLaterTransition` | `item_id`, `action[read|skip|requeue]` | `ReadLaterItem` |
+| `DocumentSummarize` | `document_id`, `idempotency_key` | `DocumentSummary`（异步） |
+
+### 7.9 日历与目标拆解（4.16）
+
+| 方法 | 请求要点 | 返回 |
+|---|---|---|
+| `CalendarGetMonth` | `month` | `CalendarMonth`（任务/复习/考试/打卡/专注/个人事件投影） |
+| `CalendarEventUpsert` | `kind=personal`, 事件字段 | `CalendarEvent` |
+| `MilestoneCreate` | `goal_id`, `title`, `due_at`, `criteria_json` | `Milestone` |
+| `MilestoneEvaluate` | `milestone_id` | `Milestone`（服务端判定达成） |
+
+### 7.10 家庭绑定（4.21）
+
+| 方法 | 请求要点 | 返回 |
+|---|---|---|
+| `FamilyInviteCreate` | `idempotency_key` | `InviteCode`（24h 有效） |
+| `FamilyBind` | `invite_code` | `FamilyBinding` |
+| `FamilyUnbind` | `binding_id`, `version` | `DeleteResult` |
+| `ParentSettingsUpdate` | `student_user_id`, `daily_limit_min`, `ai_disabled`, `report_enabled` | `ParentSettings` |
+
+### 7.11 教师端（4.22）
+
+| 方法 | 请求要点 | 返回 |
+|---|---|---|
+| `ClassCreate` | `name`, `subject`, `semester`, `idempotency_key` | `Class` |
+| `ClassInvite` | `class_id` | `InviteCode` |
+| `ClassMemberAdd/Remove` | `class_id`, `student_user_id` | `Class` |
+| `AssignmentCreate` | `class_id`, `paper_id`, `title`, `due_at`, `grading_rule` | `Assignment` |
+| `AssignmentPublish` | `assignment_id`, `version` | `Assignment`（版本冻结） |
+| `AssignmentSubmit` | `assignment_id`, 答案（学生端） | `AssignmentSubmission` |
+| `AssignmentGrade` | `submission_id`, `grade_json`（教师） | `AssignmentSubmission` |
+| `AppealCreate` | `grading_id`, `reason` | `Appeal` |
+| `AppealResolve` | `appeal_id`, `decision` | `Appeal` |
+| `ClassStats` | `class_id`, `assignment_id?` | `ClassStats`（完成率/均分/薄弱 Top） |
+
+### 7.12 管理端（4.23）
+
+| 方法 | 请求要点 | 返回 |
+|---|---|---|
+| `AdminReviewList` | `status`, `cursor`, `limit` | `ReviewQueuePage` |
+| `AdminReviewDecide` | `item_id`, `decision[approved|rejected|taken_down]`, `reason`, `version` | `ReviewQueueItem` |
+| `AdminProviderPolicySet` | `provider`, `model`, `allowed`, `daily_quota`, `monthly_budget` | `ProviderPolicy` |
+| `AdminUserDisable` | `user_id`, `reason` | `UserStatus` |
+| `AdminFeatureFlagSet` | `key`, `enabled`, `rollout_percent` | `FeatureFlag` |
+| `AdminAuditList` | `actor_id?`, `action?`, `cursor`, `limit` | `AuditPage`（只追加、脱敏） |
+
+### 7.13 插件、分享与 Webhook（4.20/4.24）
+
+| 方法 | 请求要点 | 返回 |
+|---|---|---|
+| `PluginInstall` | `path` 或 `url`, `signature` | `Plugin`（权限声明确认） |
+| `PluginSetEnabled` | `plugin_id`, `enabled` | `Plugin` |
+| `PluginUninstall` | `plugin_id` | `DeleteResult` |
+| `ShareCreate` | `ref_type`, `ref_id`, `ttl_days`, `idempotency_key` | `Share`（强制安全扫描） |
+| `ShareRevoke` | `share_id` | `DeleteResult` |
+| `WebhookSubscribe` | `url`, `event_types[]`, `idempotency_key` | `WebhookSubscription` |
+| `WebhookTestSend` | `subscription_id` | `TestResult` |
+| `WebhookDelete` | `subscription_id` | `DeleteResult` |
+
+### 7.14 扩展事件（追加到第 3 节事件表）
+
+| 事件 | 载荷 | 说明 |
+|---|---|---|
+| `report:ready` | `report_id`, `period`, `status` | 报告生成完成 |
+| `exam:auto_submitted` | `exam_id`, `status` | 考试倒计时到期自动提交 |
+| `flashcard:due` | `due_count` | 到期闪卡数变化（驱动提醒） |
+| `reminder:triggered` | `kind`, `ref_type`, `ref_id` | 提醒触发（含桌面通知） |
+| `grading:appeal` | `appeal_id`, `grading_id`, `status` | 申诉状态变化（教师端） |
+| `sync:extended` | `entity_type`, `conflict_count` | 扩展对象同步冲突 |
+
+### 7.15 扩展 API 验收标准
+
+- 新增方法均遵循幂等、版本与工作区归属约定；`FEATURE_DISABLED`/`QUOTA_EXCEEDED`/`EXAM_IN_PROGRESS` 等新错误码在对应场景稳定返回。
+- 教师/管理端方法仅对授权角色开放，越权返回 `FORBIDDEN` 且写入审计。
+- 分享创建强制安全扫描，撤销后立即失效；Webhook 签名校验失败不投递。
+- 报告/摘要等异步结果通过扩展事件通知，前端不轮询。
+
+### 7.16 健康、语音与知识图谱（4.17–4.19）
+
+| 方法 | 请求要点 | 返回 |
+|---|---|---|
+| `HealthSettingsUpdate` | `workspace_id`, `sedentary_enabled`, `eye_enabled`, `night_mode`, `blue_light_filter`, `stats_enabled` | `HealthSettings` |
+| `HealthStatsGet` | `date_range` | `HealthStats`（久坐次数/休息完成率，仅开启时采集） |
+| `TTSPlay` | `ref_type[question|note|flashcard|document]`, `ref_id`, `speed` | `TTSResult`（音频流或本地缓存引用） |
+| `SpeakingSubmit` | `submission_id`, `audio_path`, `idempotency_key` | `SpeakingResult`（转写 + 分维度评分，异步 `grading:updated`） |
+| `SpeakingResultGet` | `submission_id` | `SpeakingResult` |
+| `KnowledgeGraphGet` | `workspace_id` | `KnowledgeGraph`（节点/边/掌握度；超限返回 Top-N） |
+| `MasterySnapshotList` | `user_id`, `knowledge_id?`, `cursor` | `MasterySnapshotPage` |
+| `MasteryExplain` | `user_id`, `knowledge_id` | `MasteryExplanation`（口径 + 证据样本） |
+
+> `TTSPlay`/`SpeakingSubmit` 仅在启用对应 Provider 时可用；未配置时返回 `FEATURE_DISABLED` 且前端隐藏入口。
