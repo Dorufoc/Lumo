@@ -20,6 +20,17 @@ const (
 	CodeImportFailed        ErrorCode = "IMPORT_FAILED"
 	CodeSandboxLimit        ErrorCode = "SANDBOX_LIMIT"
 	CodeRequestCancelled    ErrorCode = "REQUEST_CANCELLED"
+	CodeFeatureDisabled     ErrorCode = "FEATURE_DISABLED"
+	CodeQuotaExceeded       ErrorCode = "QUOTA_EXCEEDED"
+	CodeExamInProgress      ErrorCode = "EXAM_IN_PROGRESS"
+	CodePluginError         ErrorCode = "PLUGIN_ERROR"
+	CodeWebhookFailed       ErrorCode = "WEBHOOK_FAILED"
+	CodeShareExpired        ErrorCode = "SHARE_EXPIRED"
+	CodeFamilyBound         ErrorCode = "FAMILY_BOUND"
+	CodeReviewRequired      ErrorCode = "REVIEW_REQUIRED"
+	CodeWorkspaceLocked     ErrorCode = "WORKSPACE_LOCKED"
+	CodeStorageFull         ErrorCode = "STORAGE_FULL"
+	CodeMigrationBlocked    ErrorCode = "MIGRATION_BLOCKED"
 	CodeInternal            ErrorCode = "INTERNAL"
 )
 
@@ -74,3 +85,37 @@ func InvalidState(format string, args ...any) *Error {
 }
 func Conflict(format string, args ...any) *Error  { return E(CodeConflict, format, args...) }
 func Forbidden(format string, args ...any) *Error { return E(CodeForbidden, format, args...) }
+
+func FeatureDisabled(format string, args ...any) *Error {
+	return E(CodeFeatureDisabled, format, args...)
+}
+func QuotaExceeded(format string, args ...any) *Error {
+	return E(CodeQuotaExceeded, format, args...)
+}
+func ExamInProgress(format string, args ...any) *Error {
+	return E(CodeExamInProgress, format, args...)
+}
+func PluginError(format string, args ...any) *Error {
+	return E(CodePluginError, format, args...)
+}
+func WebhookFailed(format string, args ...any) *Error {
+	return E(CodeWebhookFailed, format, args...)
+}
+func ShareExpired(format string, args ...any) *Error {
+	return E(CodeShareExpired, format, args...)
+}
+func FamilyBound(format string, args ...any) *Error {
+	return E(CodeFamilyBound, format, args...)
+}
+func ReviewRequired(format string, args ...any) *Error {
+	return E(CodeReviewRequired, format, args...)
+}
+func WorkspaceLocked(format string, args ...any) *Error {
+	return E(CodeWorkspaceLocked, format, args...)
+}
+func StorageFull(format string, args ...any) *Error {
+	return E(CodeStorageFull, format, args...)
+}
+func MigrationBlocked(format string, args ...any) *Error {
+	return E(CodeMigrationBlocked, format, args...)
+}

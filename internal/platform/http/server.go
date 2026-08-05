@@ -174,7 +174,7 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 
 func httpStatus(code domain.ErrorCode) int {
 	switch code {
-	case domain.CodeInvalidArgument:
+	case domain.CodeInvalidArgument, domain.CodeFeatureDisabled, domain.CodePluginError:
 		return http.StatusBadRequest
 	case domain.CodeUnauthorized:
 		return http.StatusUnauthorized
@@ -182,12 +182,18 @@ func httpStatus(code domain.ErrorCode) int {
 		return http.StatusForbidden
 	case domain.CodeNotFound:
 		return http.StatusNotFound
-	case domain.CodeConflict:
+	case domain.CodeConflict, domain.CodeInvalidState, domain.CodeExamInProgress,
+		domain.CodeFamilyBound, domain.CodeReviewRequired, domain.CodeWorkspaceLocked,
+		domain.CodeMigrationBlocked:
 		return http.StatusConflict
-	case domain.CodeInvalidState:
-		return http.StatusConflict
+	case domain.CodeShareExpired:
+		return http.StatusGone
+	case domain.CodeQuotaExceeded, domain.CodeStorageFull:
+		return http.StatusTooManyRequests
 	case domain.CodeInternal, domain.CodeDatabaseUnavailable:
 		return http.StatusInternalServerError
+	case domain.CodeWebhookFailed:
+		return http.StatusBadGateway
 	default:
 		return http.StatusServiceUnavailable
 	}
