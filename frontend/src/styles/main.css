@@ -1,59 +1,8 @@
-/* Lumo AI 设计系统：内容优先、紧凑列表、可访问性（WCAG AA 对比度） */
+/* Lumo AI 设计系统：内容优先、紧凑列表、可访问性（WCAG AA 对比度）
+   设计 token（颜色/字体/间距/圆角/阴影/动效）统一来自 tokens.css ——
+   本文件不再允许出现任何颜色字面量（7.5.7 硬编码颜色禁令）。 */
 
-:root {
-  /* 颜色语义 */
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
-  --color-primary-soft: #eff6ff;
-  --color-success: #16a34a;
-  --color-success-soft: #f0fdf4;
-  --color-warning: #d97706;
-  --color-warning-soft: #fffbeb;
-  --color-error: #dc2626;
-  --color-error-soft: #fef2f2;
-  --color-offline: #6b7280;
-  --color-disabled: #9ca3af;
-
-  /* 中性色 */
-  --bg: #f8fafc;
-  --bg-surface: #ffffff;
-  --bg-sidebar: #0f172a;
-  --bg-sidebar-hover: #1e293b;
-  --text: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
-
-  /* 字体 */
-  --font-sans: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --font-mono: 'JetBrains Mono', Consolas, 'Courier New', monospace;
-
-  /* 字号 */
-  --text-xs: 12px;
-  --text-sm: 13px;
-  --text-base: 14px;
-  --text-lg: 16px;
-  --text-xl: 20px;
-  --text-2xl: 26px;
-
-  /* 间距 */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-
-  /* 圆角与阴影 */
-  --radius: 8px;
-  --radius-sm: 4px;
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
-
-  /* 焦点 */
-  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.35);
-}
+@import url('./tokens.css');
 
 * {
   box-sizing: border-box;
@@ -120,7 +69,7 @@ textarea {
   width: 220px;
   flex-shrink: 0;
   background: var(--bg-sidebar);
-  color: #cbd5e1;
+  color: var(--sidebar-text);
   display: flex;
   flex-direction: column;
   padding: var(--space-4) 0;
@@ -130,7 +79,7 @@ textarea {
   padding: 0 var(--space-4) var(--space-4);
   font-size: var(--text-lg);
   font-weight: 700;
-  color: #fff;
+  color: var(--sidebar-text-strong);
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -146,27 +95,27 @@ textarea {
   align-items: center;
   gap: var(--space-2);
   padding: 10px var(--space-4);
-  color: #cbd5e1;
+  color: var(--sidebar-text);
   font-size: var(--text-base);
   cursor: pointer;
   border-left: 3px solid transparent;
 }
 .nav-item:hover {
   background: var(--bg-sidebar-hover);
-  color: #fff;
+  color: var(--sidebar-text-strong);
   text-decoration: none;
 }
 .nav-item.active {
   background: var(--bg-sidebar-hover);
-  color: #fff;
+  color: var(--sidebar-text-strong);
   border-left-color: var(--color-primary);
 }
 
 .sidebar-footer {
   padding: var(--space-3) var(--space-4);
   font-size: var(--text-xs);
-  color: #64748b;
-  border-top: 1px solid #1e293b;
+  color: var(--sidebar-text-muted);
+  border-top: 1px solid var(--sidebar-border);
 }
 
 .main {
@@ -254,20 +203,20 @@ textarea {
 .btn-primary {
   background: var(--color-primary);
   border-color: var(--color-primary);
-  color: #fff;
+  color: var(--on-accent);
 }
 .btn-primary:hover {
   background: var(--color-primary-hover);
-  color: #fff;
+  color: var(--on-accent);
 }
 .btn-success {
   background: var(--color-success);
   border-color: var(--color-success);
-  color: #fff;
+  color: var(--on-accent);
 }
 .btn-success:hover {
   filter: brightness(0.95);
-  color: #fff;
+  color: var(--on-accent);
 }
 .btn-danger {
   background: var(--bg-surface);
@@ -276,7 +225,7 @@ textarea {
 }
 .btn-danger:hover {
   background: var(--color-error);
-  color: #fff;
+  color: var(--on-accent);
 }
 .btn-sm {
   padding: 4px 10px;
@@ -286,7 +235,7 @@ textarea {
 .btn[disabled] {
   background: var(--color-disabled);
   border-color: var(--color-disabled);
-  color: #fff;
+  color: var(--on-accent);
   cursor: not-allowed;
   opacity: 0.7;
 }
@@ -361,7 +310,7 @@ textarea {
 .badge-warning { background: var(--color-warning-soft); color: var(--color-warning); }
 .badge-error { background: var(--color-error-soft); color: var(--color-error); }
 .badge-primary { background: var(--color-primary-soft); color: var(--color-primary); }
-.badge-offline { background: #f1f5f9; color: var(--color-offline); }
+.badge-offline { background: var(--bg-subtle); color: var(--color-offline); }
 
 /* 表格 */
 .table {
@@ -383,7 +332,7 @@ textarea {
   vertical-align: top;
 }
 .table tr:hover td {
-  background: #f8fafc;
+  background: var(--bg-hover);
 }
 
 /* 状态 */
@@ -428,7 +377,7 @@ textarea {
   gap: var(--space-3);
 }
 .offline-banner {
-  background: #f1f5f9;
+  background: var(--bg-subtle);
   border: 1px solid var(--border-strong);
   color: var(--color-offline);
   border-radius: var(--radius-sm);
@@ -505,17 +454,17 @@ textarea {
 }
 .option-item.selected .option-key {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--color-primary);
 }
 .option-item.correct .option-key {
   background: var(--color-success);
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--color-success);
 }
 .option-item.incorrect .option-key {
   background: var(--color-error);
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--color-error);
 }
 
@@ -523,8 +472,8 @@ textarea {
 .code-block {
   font-family: var(--font-mono);
   font-size: var(--text-sm);
-  background: #0f172a;
-  color: #e2e8f0;
+  background: var(--code-bg);
+  color: var(--code-text);
   border-radius: var(--radius-sm);
   padding: var(--space-4);
   overflow-x: auto;
@@ -548,7 +497,7 @@ textarea {
 .chat-msg.user {
   align-self: flex-end;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--on-accent);
 }
 .chat-msg.assistant {
   align-self: flex-start;

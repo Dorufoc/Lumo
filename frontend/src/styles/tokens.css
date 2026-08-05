@@ -1,0 +1,162 @@
+/* ==========================================================================
+   Lumo AI 设计 token v3.0 — 暖焰渐变 × 玻璃光感
+   --------------------------------------------------------------------------
+   来源：完整设计文档.md §7.5.2（主题色与 token 规范）、§7.5.3（圆角/光效/模糊）、
+   §7.5.5（深浅双主题）、§7.5.7（硬编码颜色禁令）。
+
+   硬规则（7.5.7）：本文件是全前端颜色字面量（hex/rgb/hsl/rgba）的唯一合法来源。
+   组件/视图/内联样式一律引用 token，禁止直接写色值。
+
+   主题结构：
+     :root                浅色主题（默认，浏览器不支持 JS 时兜底不破版）
+     [data-theme='dark']  深色覆盖块（由 theme store 在 <html> 上设置）
+   系统偏好（prefers-color-scheme）跟随在 theme store 初始化时读取（非纯 CSS），
+   因此用户手动切换后以手动选择为准，重启后由 localStorage('lumo-theme') 保持。
+   ========================================================================== */
+
+/* ---------- 浅色主题（默认） ---------- */
+:root {
+  color-scheme: light;
+
+  /* 主渐变（7.5.2：全站唯一来源） */
+  --gradient: linear-gradient(135deg, #ff5928, #fba029);
+  --gradient-soft: linear-gradient(135deg, rgba(255, 89, 40, 0.12), rgba(251, 160, 41, 0.12));
+
+  /* 语义色（7.5.2 清单：所有组件只引用 token） */
+  --color-primary: #ff5928;
+  --color-primary-hover: #e0440f;
+  --color-primary-soft: #fff1ea;
+  --color-success: #16a34a;
+  --color-success-soft: #f0fdf4;
+  --color-warning: #d97706;
+  --color-warning-soft: #fffbeb;
+  --color-error: #dc2626;
+  --color-error-soft: #fef2f2;
+  --color-offline: #6b7280;
+  --color-disabled: #9ca3af;
+
+  /* 中性色（7.5.2：全部主题化） */
+  --bg: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-sidebar: #0f172a;
+  --bg-sidebar-hover: #1e293b;
+  --text: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  /* 补充中性色（浅色专用，深色主题覆盖） */
+  --bg-subtle: #f1f5f9;
+  --bg-hover: #f8fafc;
+  --code-bg: #0f172a;
+  --code-text: #e2e8f0;
+
+  /* 玻璃拟态（7.5.3：backdrop-filter 模糊 + 半透明表面） */
+  --color-bg-glass: rgba(255, 255, 255, 0.72);
+  --backdrop-blur: 12px;
+
+  /* 光效（7.5.3：主操作暖色外发光，低透明度渐变阴影） */
+  --glow-primary: 0 8px 24px rgba(255, 89, 40, 0.28), 0 2px 8px rgba(251, 160, 41, 0.22);
+
+  /* 圆角（7.5.3：大面积圆角是视觉语言的一部分） */
+  --radius-sm: 10px;
+  --radius: 16px;
+  --radius-lg: 24px;
+  --radius-full: 999px;
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+
+  /* 焦点环（7.5.2：渐变透明版本，保证键盘可达，禁止被 outline:none 移除） */
+  --focus-ring: 0 0 0 3px rgba(255, 89, 40, 0.35);
+
+  /* 文字与强调（浅色专用，深色主题覆盖） */
+  --on-accent: #ffffff;
+  --sidebar-text: #cbd5e1;
+  --sidebar-text-strong: #ffffff;
+  --sidebar-text-muted: #64748b;
+  --sidebar-border: #1e293b;
+
+  /* 字体（7.5.1：全站通过 token 引用，禁止局部硬编码字体） */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', Consolas, 'Courier New', monospace;
+
+  /* 字号 */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 26px;
+
+  /* 间距（4px 栅格） */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* 动效（7.5.4：统一非线性缓动，禁止默认线性 transition） */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ---------- 深色主题（[data-theme='dark']） ---------- */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* 渐变在两主题下保持一致，低透明度变体在深色下略提亮 */
+  --gradient: linear-gradient(135deg, #ff5928, #fba029);
+  --gradient-soft: linear-gradient(135deg, rgba(255, 89, 40, 0.16), rgba(251, 160, 41, 0.16));
+
+  /* 语义色（深色下提高明度以满足 WCAG AA 对比度） */
+  --color-primary: #ff5928;
+  --color-primary-hover: #e0440f;
+  --color-primary-soft: rgba(255, 89, 40, 0.18);
+  --color-success: #4ade80;
+  --color-success-soft: rgba(74, 222, 128, 0.16);
+  --color-warning: #fbbf24;
+  --color-warning-soft: rgba(251, 191, 36, 0.16);
+  --color-error: #f87171;
+  --color-error-soft: rgba(248, 113, 113, 0.16);
+  --color-offline: #9ca3af;
+  --color-disabled: #6b7280;
+
+  /* 中性色：深暖灰（7.5.5：禁用纯黑背景，避免刺眼） */
+  --bg: #1c1917;
+  --bg-surface: #262320;
+  --bg-sidebar: #14110f;
+  --bg-sidebar-hover: #2b2725;
+  --text: #ece9e4;
+  --text-secondary: #a8a29e;
+  --text-muted: #78716c;
+  --border: #3a3633;
+  --border-strong: #4a4541;
+
+  --bg-subtle: #262320;
+  --bg-hover: #2b2725;
+  --code-bg: #14110f;
+  --code-text: #e7e5e4;
+
+  /* 玻璃拟态：降低透明度并加深模糊，保证浮层与背景可区分（7.5.5） */
+  --color-bg-glass: rgba(38, 35, 32, 0.6);
+  --backdrop-blur: 16px;
+
+  /* 光效：低亮度暖光（7.5.5） */
+  --glow-primary: 0 8px 24px rgba(255, 89, 40, 0.18), 0 2px 8px rgba(251, 160, 41, 0.14);
+
+  /* 阴影在深色下加深，保证层级感 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+
+  --focus-ring: 0 0 0 3px rgba(255, 138, 77, 0.45);
+
+  --on-accent: #ffffff;
+  --sidebar-text: #a8a29e;
+  --sidebar-text-strong: #ffffff;
+  --sidebar-text-muted: #78716c;
+  --sidebar-border: #3a3633;
+}
