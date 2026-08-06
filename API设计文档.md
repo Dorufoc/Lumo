@@ -177,6 +177,8 @@
 | `AgentMemoryDelete` | `workspace_id`, `memory_id`, `version` | `DeleteResult` |
 | `AgentSummarize` | `workspace_id`, `user_id`, `document_id`, `preferences`, `idempotency_key` | `AgentSummarizeResult` |
 | `AgentQuizGen` | `workspace_id`, `user_id`, `document_ids`, `types`, `count`, `knowledge_ids`, `idempotency_key` | `AgentQuizGenResult` |
+| `AgentDebug` | `workspace_id`, `user_id`, `language`, `code`, `error_output`, `test_cases`, `idempotency_key` | `AgentDebugResult` |
+| `AgentEssayGrade` | `workspace_id`, `user_id`, `stem`, `rubric`, `essay`, `max_score`, `idempotency_key` | `AgentEssayGradeResult` |
 | `DocumentImport` | `workspace_id`, `file_path`, `idempotency_key` | `Document` |
 | `DocumentList` | `workspace_id`, `status`, `cursor`, `limit` | `DocumentPage` |
 | `DocumentRetry` | `workspace_id`, `document_id`, `idempotency_key` | `Document` |

@@ -99,7 +99,8 @@ func (a *Service) AgentChatCreate(ctx context.Context, req AgentChatCreateReq) (
 	}
 	valid := map[string]bool{"router": true, "planner": true, "profiler": true, "tutor": true,
 		"grader": true, "diagnoser": true, "librarian": true, "ocr": true, "variator": true,
-		"auditor": true, "interviewer": true, "coach": true, "summarizer": true, "quizgen": true}
+		"auditor": true, "interviewer": true, "coach": true, "summarizer": true, "quizgen": true,
+		"debugger": true, "essaygrader": true}
 	if !valid[req.Agent] {
 		return nil, domain.InvalidArg("agent 类型非法")
 	}

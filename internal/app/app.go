@@ -242,6 +242,8 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "AgentMemoryDelete", a.Agent.AgentMemoryDelete)
 	bind(srv, "AgentSummarize", a.Svc.AgentTasks.AgentSummarize)
 	bind(srv, "AgentQuizGen", a.Svc.AgentTasks.AgentQuizGen)
+	bind(srv, "AgentDebug", a.Svc.AgentTasks.AgentDebug)
+	bind(srv, "AgentEssayGrade", a.Svc.AgentTasks.AgentEssayGrade)
 
 	// Provider 配置（设置页）
 	bind(srv, "ProviderConfigure", a.Svc.ProviderConfigure)

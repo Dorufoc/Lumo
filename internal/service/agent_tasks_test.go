@@ -9,6 +9,7 @@ import (
 	"lumo/internal/agent"
 	"lumo/internal/domain"
 	"lumo/internal/provider"
+	"lumo/internal/sandbox"
 )
 
 // ---- 辅助 ----
@@ -414,4 +415,287 @@ func TestAgentPromptConstruction(t *testing.T) {
 		!strings.Contains(prompt2, "牛顿力学") || !strings.Contains(prompt2, "[c1]资料") {
 		t.Fatalf("quizgen prompt missing input: %q", prompt2)
 	}
+}
+
+// ---- ⑧ Debugger prompt 构造（设计文档 10.12） ----
+
+func TestDebugPromptConstruction(t *testing.T) {
+	system, prompt := agent.BuildDebugPrompt(agent.DebugInput{
+		Language: "python", Code: "print(1/0)", ErrorOutput: "ZeroDivisionError", TestCases: "case1",
+	})
+	for _, want := range []string{"error_location", "cause", "fix_suggestions", "steps"} {
+		if !strings.Contains(system, want) {
+			t.Fatalf("debug system prompt missing %q", want)
+		}
+	}
+	if !strings.Contains(prompt, "python") || !strings.Contains(prompt, "print(1/0)") ||
+		!strings.Contains(prompt, "ZeroDivisionError") || !strings.Contains(prompt, "case1") {
+		t.Fatalf("debug prompt missing input: %q", prompt)
+	}
+}
+
+// ---- ⑨ EssayGrader prompt 构造（设计文档 10.12） ----
+
+func TestEssayGraderPromptConstruction(t *testing.T) {
+	system, prompt := agent.BuildEssayGraderPrompt(agent.EssayGraderInput{
+		Stem: "题目", Rubric: "量规", Essay: "作文", MaxScore: 10,
+	})
+	for _, want := range []string{"dimensions", "content", "structure", "language", "standard", "overall_score", "suggestions"} {
+		if !strings.Contains(system, want) {
+			t.Fatalf("essay system prompt missing %q", want)
+		}
+	}
+	if !strings.Contains(prompt, "题目") || !strings.Contains(prompt, "量规") ||
+		!strings.Contains(prompt, "作文") || !strings.Contains(prompt, "10.0") {
+		t.Fatalf("essay prompt missing input: %q", prompt)
+	}
+}
+
+// ---- ⑩ Debugger LLM 路径：沙箱采集 stderr → 结构化解析 → 审计 ----
+
+func TestAgentDebugLLMPath(t *testing.T) {
+	s, _ := newTestServices(t)
+	ws, userID := createWorkspace(t, s)
+	s.Agent.LLMFactory = func() (provider.LLMProvider, error) {
+		return &stubLLM{content: `{"summary":"定位","error_location":"第1行","cause":"除零","steps":[{"title":"步骤","content":"内容"}],"fix_suggestions":[{"description":"改","example":"if b!=0"}]}`}, nil
+	}
+	s.AgentTasks.sbx = &stubSandbox{res: &sandbox.Result{ExitCode: 1, Stderr: "ZeroDivisionError\n"}}
+	res, err := s.AgentTasks.AgentDebug(ctx(), AgentDebugReq{
+		WorkspaceID: ws.ID, UserID: userID, Language: "python", Code: "print(1/0)",
+		ErrorOutput: "", TestCases: "1/0", IdempotencyKey: "ad-" + NewID(),
+	})
+	if err != nil {
+		t.Fatalf("debug llm: %v", err)
+	}
+	if res.Degraded {
+		t.Fatal("expected not degraded on llm path")
+	}
+	if !res.SandboxUsed {
+		t.Fatal("expected sandbox used")
+	}
+	if res.Result == nil || res.Result.ErrorLocation != "第1行" || len(res.Result.FixSuggestions) != 1 {
+		t.Fatalf("unexpected debug result: %+v", res.Result)
+	}
+	if n := agentAuditCount(t, s, "agent.debug"); n < 1 {
+		t.Fatalf("expected audit agent.debug, got %d", n)
+	}
+}
+
+// ---- ⑪ Debugger 沙箱失败 → SANDBOX_LIMIT 明确错误 + 审计失败原因 ----
+
+func TestAgentDebugSandboxFailure(t *testing.T) {
+	s, _ := newTestServices(t)
+	ws, userID := createWorkspace(t, s)
+	s.AgentTasks.sbx = &stubSandbox{err: &sandbox.LimitError{Kind: sandbox.KindTimeout, Message: "timed out"}}
+	_, err := s.AgentTasks.AgentDebug(ctx(), AgentDebugReq{
+		WorkspaceID: ws.ID, UserID: userID, Language: "python", Code: "while True: pass",
+		IdempotencyKey: "ad-" + NewID(),
+	})
+	if err == nil {
+		t.Fatal("expected SANDBOX_LIMIT error")
+	}
+	if de, ok := err.(*domain.Error); !ok || de.Code != domain.CodeSandboxLimit {
+		t.Fatalf("expected SANDBOX_LIMIT, got %v", err)
+	}
+	if !agentAuditPayloadContains(t, s, "agent.debug", `"reason"`) {
+		t.Fatal("expected audit failure reason on sandbox error")
+	}
+}
+
+// ---- ⑫ Debugger Provider 未配置 → 确定性降级模板 + degraded 标志 + 审计 ----
+
+func TestAgentDebugDegraded(t *testing.T) {
+	s, _ := newTestServices(t)
+	ws, userID := createWorkspace(t, s)
+	s.AgentTasks.sbx = &stubSandbox{res: &sandbox.Result{ExitCode: 1, Stderr: "boom\n"}}
+	res, err := s.AgentTasks.AgentDebug(ctx(), AgentDebugReq{
+		WorkspaceID: ws.ID, UserID: userID, Language: "python", Code: "x",
+		IdempotencyKey: "ad-" + NewID(),
+	})
+	if err != nil {
+		t.Fatalf("debug degraded: %v", err)
+	}
+	if !res.Degraded {
+		t.Fatal("expected degraded flag")
+	}
+	if res.Result == nil {
+		t.Fatal("expected template result on degraded")
+	}
+	if !agentAuditPayloadContains(t, s, "agent.debug", "provider") {
+		t.Fatal("expected degraded audit reason")
+	}
+}
+
+// ---- ⑬ Debugger 校验矩阵 + 幂等重放 ----
+
+func TestAgentDebugValidationAndIdempotent(t *testing.T) {
+	s, _ := newTestServices(t)
+	ws, userID := createWorkspace(t, s)
+	base := AgentDebugReq{WorkspaceID: ws.ID, UserID: userID, Language: "python", Code: "x"}
+	cases := []struct {
+		name string
+		mut  func(*AgentDebugReq)
+	}{
+		{"missing user", func(r *AgentDebugReq) { r.UserID = "" }},
+		{"missing lang", func(r *AgentDebugReq) { r.Language = "" }},
+		{"missing code", func(r *AgentDebugReq) { r.Code = "" }},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := base
+			c.mut(&req)
+			_, err := s.AgentTasks.AgentDebug(ctx(), req)
+			if err == nil {
+				t.Fatal("expected INVALID_ARGUMENT, got nil")
+			}
+			if de, ok := err.(*domain.Error); !ok || de.Code != domain.CodeInvalidArgument {
+				t.Fatalf("expected INVALID_ARGUMENT, got %v", err)
+			}
+		})
+	}
+	// 幂等重放：同 key 返回同结果
+	s.Agent.LLMFactory = func() (provider.LLMProvider, error) {
+		return &stubLLM{content: `{"summary":"s","error_location":"l","cause":"c","steps":[],"fix_suggestions":[]}`}, nil
+	}
+	s.AgentTasks.sbx = &stubSandbox{res: &sandbox.Result{ExitCode: 0}}
+	key := "ad-" + NewID()
+	req := AgentDebugReq{WorkspaceID: ws.ID, UserID: userID, Language: "python", Code: "x", IdempotencyKey: key}
+	first, err := s.AgentTasks.AgentDebug(ctx(), req)
+	if err != nil {
+		t.Fatalf("debug first: %v", err)
+	}
+	replay, err := s.AgentTasks.AgentDebug(ctx(), req)
+	if err != nil {
+		t.Fatalf("debug replay: %v", err)
+	}
+	if first.Result == nil || replay.Result == nil || replay.Result.ErrorLocation != first.Result.ErrorLocation {
+		t.Fatalf("idempotency violated: %+v vs %+v", replay.Result, first.Result)
+	}
+}
+
+// ---- ⑭ EssayGrader LLM 路径：维度评分校验 ≤ max_score + 审计 ----
+
+func TestAgentEssayGradeLLMPath(t *testing.T) {
+	s, _ := newTestServices(t)
+	ws, userID := createWorkspace(t, s)
+	s.Agent.LLMFactory = func() (provider.LLMProvider, error) {
+		return &stubLLM{content: `{"dimensions":{"content":4,"structure":3,"language":2,"standard":1},"overall_score":3.5,"comment":"总评","suggestions":["多分段"]}`}, nil
+	}
+	res, err := s.AgentTasks.AgentEssayGrade(ctx(), AgentEssayGradeReq{
+		WorkspaceID: ws.ID, UserID: userID, Stem: "题", Rubric: "量规", Essay: "作", MaxScore: 5,
+		IdempotencyKey: "eg-" + NewID(),
+	})
+	if err != nil {
+		t.Fatalf("essaygrade llm: %v", err)
+	}
+	if res.Degraded {
+		t.Fatal("expected not degraded")
+	}
+	if res.Result == nil || res.Result.OverallScore != 3.5 || res.Result.Dimensions.Content != 4 {
+		t.Fatalf("unexpected result: %+v", res.Result)
+	}
+	if n := agentAuditCount(t, s, "agent.essaygrade"); n < 1 {
+		t.Fatalf("expected audit agent.essaygrade, got %d", n)
+	}
+}
+
+// ---- ⑮ EssayGrader 越界得分 → OUTPUT_INVALID + 审计失败原因 ----
+
+func TestAgentEssayGradeOutOfRange(t *testing.T) {
+	s, _ := newTestServices(t)
+	ws, userID := createWorkspace(t, s)
+	s.Agent.LLMFactory = func() (provider.LLMProvider, error) {
+		return &stubLLM{content: `{"dimensions":{"content":4,"structure":3,"language":2,"standard":1},"overall_score":999,"comment":"c","suggestions":[]}`}, nil
+	}
+	_, err := s.AgentTasks.AgentEssayGrade(ctx(), AgentEssayGradeReq{
+		WorkspaceID: ws.ID, UserID: userID, Stem: "题", Essay: "作", MaxScore: 5, IdempotencyKey: "eg-" + NewID(),
+	})
+	if err == nil {
+		t.Fatal("expected error on out-of-range score")
+	}
+	if de, ok := err.(*domain.Error); !ok || de.Code != domain.CodeOutputInvalid {
+		t.Fatalf("expected OUTPUT_INVALID, got %v", err)
+	}
+	if !agentAuditPayloadContains(t, s, "agent.essaygrade", `"reason"`) {
+		t.Fatal("expected audit failure reason")
+	}
+}
+
+// ---- ⑯ EssayGrader Provider 未配置 → 确定性降级 + degraded 标志 + 审计 ----
+
+func TestAgentEssayGradeDegraded(t *testing.T) {
+	s, _ := newTestServices(t)
+	ws, userID := createWorkspace(t, s)
+	res, err := s.AgentTasks.AgentEssayGrade(ctx(), AgentEssayGradeReq{
+		WorkspaceID: ws.ID, UserID: userID, Stem: "题", Rubric: "量规", Essay: "作", MaxScore: 10,
+		IdempotencyKey: "eg-" + NewID(),
+	})
+	if err != nil {
+		t.Fatalf("essaygrade degraded: %v", err)
+	}
+	if !res.Degraded {
+		t.Fatal("expected degraded flag")
+	}
+	if res.Result == nil {
+		t.Fatal("expected template result")
+	}
+	if !agentAuditPayloadContains(t, s, "agent.essaygrade", "provider") {
+		t.Fatal("expected degraded audit reason")
+	}
+}
+
+// ---- ⑰ EssayGrader 校验矩阵 + 幂等重放 ----
+
+func TestAgentEssayGradeValidationAndIdempotent(t *testing.T) {
+	s, _ := newTestServices(t)
+	ws, userID := createWorkspace(t, s)
+	base := AgentEssayGradeReq{WorkspaceID: ws.ID, UserID: userID, Stem: "题", Essay: "作", MaxScore: 10}
+	cases := []struct {
+		name string
+		mut  func(*AgentEssayGradeReq)
+	}{
+		{"missing user", func(r *AgentEssayGradeReq) { r.UserID = "" }},
+		{"missing essay", func(r *AgentEssayGradeReq) { r.Essay = "" }},
+		{"bad max score", func(r *AgentEssayGradeReq) { r.MaxScore = 0 }},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := base
+			c.mut(&req)
+			_, err := s.AgentTasks.AgentEssayGrade(ctx(), req)
+			if err == nil {
+				t.Fatal("expected INVALID_ARGUMENT, got nil")
+			}
+			if de, ok := err.(*domain.Error); !ok || de.Code != domain.CodeInvalidArgument {
+				t.Fatalf("expected INVALID_ARGUMENT, got %v", err)
+			}
+		})
+	}
+	s.Agent.LLMFactory = func() (provider.LLMProvider, error) {
+		return &stubLLM{content: `{"dimensions":{"content":1,"structure":1,"language":1,"standard":1},"overall_score":1,"comment":"c","suggestions":["s"]}`}, nil
+	}
+	key := "eg-" + NewID()
+	req := AgentEssayGradeReq{WorkspaceID: ws.ID, UserID: userID, Stem: "题", Essay: "作", MaxScore: 10, IdempotencyKey: key}
+	first, err := s.AgentTasks.AgentEssayGrade(ctx(), req)
+	if err != nil {
+		t.Fatalf("essaygrade first: %v", err)
+	}
+	replay, err := s.AgentTasks.AgentEssayGrade(ctx(), req)
+	if err != nil {
+		t.Fatalf("essaygrade replay: %v", err)
+	}
+	if first.Result == nil || replay.Result == nil || replay.Result.OverallScore != first.Result.OverallScore {
+		t.Fatalf("idempotency violated: %+v vs %+v", replay.Result, first.Result)
+	}
+}
+
+// ---- 辅助：沙箱桩（确定性执行结果/错误） ----
+
+type stubSandbox struct {
+	res *sandbox.Result
+	err error
+}
+
+func (s *stubSandbox) Run(ctx context.Context, spec sandbox.Spec) (*sandbox.Result, error) {
+	return s.res, s.err
 }

@@ -49,6 +49,10 @@ func (a *Service) handlerFor(agentType string, llm provider.LLMProvider) Handler
 		return &SummarizerHandler{}
 	case "quizgen":
 		return &QuizGenHandler{}
+	case "debugger":
+		return &DebuggerHandler{}
+	case "essaygrader":
+		return &EssayGraderHandler{}
 	default:
 		return &RouterHandler{}
 	}

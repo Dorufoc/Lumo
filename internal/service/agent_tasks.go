@@ -3,11 +3,13 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"lumo/internal/agent"
 	"lumo/internal/domain"
 	"lumo/internal/repository"
+	"lumo/internal/sandbox"
 )
 
 // quizGenPromptVersion 出题提示词版本（question_versions.prompt_version）。
@@ -25,8 +27,19 @@ var quizValidTypes = map[string]bool{
 	"fill_blank": true, "short_answer": true, "code": true,
 }
 
-// AgentTasksService Agent 扩展任务用例（Summarizer 10.9 / QuizGen 10.10）。
-type AgentTasksService struct{ s *Services }
+// AgentTasksService Agent 扩展任务用例（Summarizer 10.9 / QuizGen 10.10 / Debugger+EssayGrader 10.12）。
+type AgentTasksService struct {
+	s   *Services
+	sbx sandbox.Runner // 可注入沙箱执行器（测试替换为桩；nil 用默认子进程沙箱）
+}
+
+// sandbox 返回沙箱执行器（默认真实子进程沙箱）。
+func (a *AgentTasksService) sandbox() sandbox.Runner {
+	if a.sbx != nil {
+		return a.sbx
+	}
+	return sandbox.DefaultRunner
+}
 
 // AgentSummarizeReq 文档摘要请求（Summarizer）。
 type AgentSummarizeReq struct {
@@ -142,10 +155,15 @@ func summarizeChunkText(chunks []*repository.ChunkRow) string {
 	return sb.String()
 }
 
-// providerError 将 LLM 调用错误归一化为稳定错误码。
+// providerError 将 LLM 调用/沙箱执行错误归一化为稳定错误码。
 func providerError(err error) error {
 	if de, ok := err.(*domain.Error); ok {
 		return de // 已带稳定错误码（OUTPUT_INVALID 等）
+	}
+	var sl *sandbox.LimitError
+	if errors.As(err, &sl) {
+		// 沙箱超时/资源超限/执行失败 → SANDBOX_LIMIT 明确错误，不 panic
+		return domain.WrapError(domain.CodeSandboxLimit, sl.Error(), err)
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return domain.WrapError(domain.CodeProviderTimeout, "AI Provider 调用超时", err)
@@ -459,4 +477,214 @@ func draftOptionsToService(opts []agent.DraftOption) []QuestionOption {
 		out = append(out, QuestionOption{Key: o.Key, Text: o.Text})
 	}
 	return out
+}
+
+// ---------- Debugger（10.12 代码调试助手） ----------
+
+// sandboxCodeMax 送入沙箱的代码长度上限（避免超长 argv / 控制成本，超出则跳过沙箱）。
+const sandboxCodeMax = 8000
+
+// debuggerCommand 由语言推断"内联代码"执行命令；不支持的语言返回 ok=false（跳过沙箱，
+// 仅用用户提供的 error_output）。
+func debuggerCommand(lang string) ([]string, bool) {
+	switch strings.ToLower(strings.TrimSpace(lang)) {
+	case "python", "py":
+		return []string{"python", "-c"}, true
+	case "python3":
+		return []string{"python3", "-c"}, true
+	case "node", "javascript", "js":
+		return []string{"node", "-e"}, true
+	default:
+		return nil, false
+	}
+}
+
+// AgentDebugReq 代码调试请求（Debugger）。
+type AgentDebugReq struct {
+	WorkspaceID    string `json:"workspace_id"`
+	UserID         string `json:"user_id"`
+	Language       string `json:"language"`
+	Code           string `json:"code"`
+	ErrorOutput    string `json:"error_output"`
+	TestCases      string `json:"test_cases"`
+	IdempotencyKey string `json:"idempotency_key"`
+}
+
+// AgentDebugResult 调试结果。
+type AgentDebugResult struct {
+	Result        *agent.DebugOutput `json:"result"`
+	Degraded      bool               `json:"degraded"`
+	SandboxUsed   bool               `json:"sandbox_used"`
+	SandboxStderr string             `json:"sandbox_stderr,omitempty"`
+	Message       string             `json:"message,omitempty"`
+}
+
+// AgentDebug 代码题答疑：隔离沙箱采集真实 stderr/exit → LLM 结构化解析
+// （幂等 + 审计；沙箱失败映射 SANDBOX_LIMIT；未配置 Provider 确定性降级）。
+func (a *AgentTasksService) AgentDebug(ctx context.Context, req AgentDebugReq) (*AgentDebugResult, error) {
+	if err := a.s.assertWorkspace(ctx, req.WorkspaceID); err != nil {
+		return nil, err
+	}
+	if req.UserID == "" {
+		return nil, domain.InvalidArg("user_id 必填")
+	}
+	if req.Language == "" {
+		return nil, domain.InvalidArg("language 必填")
+	}
+	if req.Code == "" {
+		return nil, domain.InvalidArg("code 必填")
+	}
+	return withIdempotency(a.s, ctx, req.WorkspaceID, req.IdempotencyKey, "AgentDebug",
+		func() (*AgentDebugResult, error) { return a.doDebug(ctx, req) })
+}
+
+// doDebug 执行代码调试（沙箱 → LLM → 结构化结果）。
+func (a *AgentTasksService) doDebug(ctx context.Context, req AgentDebugReq) (*AgentDebugResult, error) {
+	// 1. 隔离沙箱采集真实 stderr/exit（仅内联执行语言，代码超长跳过）
+	stderr := req.ErrorOutput
+	sandboxUsed := false
+	if cmd, ok := debuggerCommand(req.Language); ok && len([]rune(req.Code)) <= sandboxCodeMax {
+		res, err := a.sandbox().Run(ctx, sandbox.Spec{
+			Args: append(cmd, req.Code),
+			Env:  []string{"LUMO_SANDBOX=1"},
+		})
+		if err != nil {
+			// 沙箱失败/超时 → SANDBOX_LIMIT 明确错误，不 panic
+			a.s.audit(ctx, req.WorkspaceID, "agent.debug", "workspace", req.WorkspaceID,
+				map[string]any{"status": "failed", "language": req.Language, "reason": err.Error()})
+			return nil, providerError(err)
+		}
+		sandboxUsed = true
+		if res.Stderr != "" {
+			stderr = truncateRunes(res.Stderr, agentTasksTextBudget)
+		}
+		if res.ExitCode != 0 && stderr == "" {
+			stderr = fmt.Sprintf("退出码 %d", res.ExitCode)
+		}
+	}
+
+	llm, llmErr := a.s.Agent.LLMFactoryFunc()
+	if llmErr != nil {
+		// 降级：确定性模板解析（不 panic，可重试）
+		out := debugFallback(req, stderr)
+		a.s.audit(ctx, req.WorkspaceID, "agent.debug", "workspace", req.WorkspaceID,
+			map[string]any{"status": "degraded", "language": req.Language, "sandbox_used": sandboxUsed, "reason": "provider not configured"})
+		return &AgentDebugResult{Result: out, Degraded: true, SandboxUsed: sandboxUsed,
+			SandboxStderr: truncateRunes(stderr, 2000), Message: "AI 模型未配置，已降级为模板解析"}, nil
+	}
+
+	system, prompt := agent.BuildDebugPrompt(agent.DebugInput{
+		Language: req.Language, Code: truncateRunes(req.Code, agentTasksTextBudget),
+		ErrorOutput: stderr, TestCases: truncateRunes(req.TestCases, agentTasksTextBudget),
+	})
+	var out agent.DebugOutput
+	model, err := agent.ChatJSON(ctx, llm, system, prompt, &out)
+	if err != nil {
+		a.s.audit(ctx, req.WorkspaceID, "agent.debug", "workspace", req.WorkspaceID,
+			map[string]any{"status": "failed", "language": req.Language, "reason": err.Error()})
+		return nil, providerError(err)
+	}
+	a.s.audit(ctx, req.WorkspaceID, "agent.debug", "workspace", req.WorkspaceID,
+		map[string]any{"status": "ready", "language": req.Language, "sandbox_used": sandboxUsed, "model": model})
+	return &AgentDebugResult{Result: &out, SandboxUsed: sandboxUsed,
+		SandboxStderr: truncateRunes(stderr, 2000)}, nil
+}
+
+// debugFallback 未配置 Provider 时的确定性调试模板。
+func debugFallback(req AgentDebugReq, stderr string) *agent.DebugOutput {
+	cause := "未配置 AI 模型，无法定位具体错误；请对照错误输出排查。"
+	if stderr != "" {
+		cause = "错误输出已捕获，请配置 AI 模型后获取完整定位与修复建议。"
+	}
+	return &agent.DebugOutput{
+		Summary:       "AI 模型未配置，已降级为模板解析（不修改用户代码）",
+		ErrorLocation: "（未配置 AI 模型，无法定位）",
+		Cause:         cause,
+		Steps: []agent.DebugStep{
+			{Title: "复现", Content: "在本地运行代码，确认错误输出：" + truncateRunes(stderr, 200)},
+			{Title: "定位", Content: "依据错误堆栈定位出错行，检查变量与类型。"},
+			{Title: "验证", Content: "修改后用测试用例验证。"},
+		},
+		FixSuggestions: []agent.FixSuggestion{
+			{Description: "配置模型 Provider 后重试", Example: "在「设置与数据」中配置 LLM Provider 后重新调试"},
+		},
+	}
+}
+
+// ---------- EssayGrader（10.12 作文批改） ----------
+
+// AgentEssayGradeReq 作文批改请求（EssayGrader）。
+type AgentEssayGradeReq struct {
+	WorkspaceID    string  `json:"workspace_id"`
+	UserID         string  `json:"user_id"`
+	Stem           string  `json:"stem"`
+	Rubric         string  `json:"rubric"`
+	Essay          string  `json:"essay"`
+	MaxScore       float64 `json:"max_score"`
+	IdempotencyKey string  `json:"idempotency_key"`
+}
+
+// AgentEssayGradeResult 批改结果。
+type AgentEssayGradeResult struct {
+	Result   *agent.EssayGraderOutput `json:"result"`
+	Degraded bool                     `json:"degraded"`
+	Message  string                   `json:"message,omitempty"`
+}
+
+// AgentEssayGrade 作文批改：量规 + 作文 → 分维度评分（供 P5B AssignmentGrade 预批）。
+// 幂等 + 审计；评分越界映射 OUTPUT_INVALID；未配置 Provider 确定性降级。
+func (a *AgentTasksService) AgentEssayGrade(ctx context.Context, req AgentEssayGradeReq) (*AgentEssayGradeResult, error) {
+	if err := a.s.assertWorkspace(ctx, req.WorkspaceID); err != nil {
+		return nil, err
+	}
+	if req.UserID == "" {
+		return nil, domain.InvalidArg("user_id 必填")
+	}
+	if req.Essay == "" {
+		return nil, domain.InvalidArg("essay 必填")
+	}
+	if req.MaxScore <= 0 {
+		return nil, domain.InvalidArg("max_score 须为正数")
+	}
+	return withIdempotency(a.s, ctx, req.WorkspaceID, req.IdempotencyKey, "AgentEssayGrade",
+		func() (*AgentEssayGradeResult, error) { return a.doEssayGrade(ctx, req) })
+}
+
+// doEssayGrade 执行作文批改（LLM → 结构化评分 + 越界校验）。
+func (a *AgentTasksService) doEssayGrade(ctx context.Context, req AgentEssayGradeReq) (*AgentEssayGradeResult, error) {
+	llm, llmErr := a.s.Agent.LLMFactoryFunc()
+	if llmErr != nil {
+		// 降级：不伪造评分，输出占位结果（不落库，可重试）
+		out := &agent.EssayGraderOutput{
+			Comment:     "AI 模型未配置，无法评分；请配置 Provider 后重试",
+			Suggestions: []string{"配置模型 Provider 后重新批改"},
+		}
+		a.s.audit(ctx, req.WorkspaceID, "agent.essaygrade", "workspace", req.WorkspaceID,
+			map[string]any{"status": "degraded", "reason": "provider not configured"})
+		return &AgentEssayGradeResult{Result: out, Degraded: true,
+			Message: "AI 模型未配置，已降级（未生成有效评分）"}, nil
+	}
+
+	system, prompt := agent.BuildEssayGraderPrompt(agent.EssayGraderInput{
+		Stem:     truncateRunes(req.Stem, agentTasksTextBudget),
+		Rubric:   truncateRunes(req.Rubric, agentTasksTextBudget),
+		Essay:    truncateRunes(req.Essay, agentTasksTextBudget),
+		MaxScore: req.MaxScore,
+	})
+	var out agent.EssayGraderOutput
+	model, err := agent.ChatJSON(ctx, llm, system, prompt, &out)
+	if err != nil {
+		a.s.audit(ctx, req.WorkspaceID, "agent.essaygrade", "workspace", req.WorkspaceID,
+			map[string]any{"status": "failed", "reason": err.Error()})
+		return nil, providerError(err)
+	}
+	if !agent.ValidEssayScores(out, req.MaxScore) {
+		err := domain.WrapError(domain.CodeOutputInvalid, "评分超出范围", nil)
+		a.s.audit(ctx, req.WorkspaceID, "agent.essaygrade", "workspace", req.WorkspaceID,
+			map[string]any{"status": "failed", "reason": err.Error()})
+		return nil, err
+	}
+	a.s.audit(ctx, req.WorkspaceID, "agent.essaygrade", "workspace", req.WorkspaceID,
+		map[string]any{"status": "ready", "model": model})
+	return &AgentEssayGradeResult{Result: &out}, nil
 }
