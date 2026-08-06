@@ -159,6 +159,15 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "ReviewSubmit", a.Svc.Review.ReviewSubmit)
 	bind(srv, "ReviewHistoryList", a.Svc.Review.ReviewHistoryList)
 
+	// 4.9 闪卡模块（API 文档 7.2）
+	bind(srv, "FlashcardCreate", a.Svc.Flashcard.FlashcardCreate)
+	bind(srv, "FlashcardGenerate", a.Svc.Flashcard.FlashcardGenerate)
+	bind(srv, "FlashcardListDue", a.Svc.Flashcard.FlashcardListDue)
+	bind(srv, "FlashcardReview", a.Svc.Flashcard.FlashcardReview)
+	bind(srv, "FlashcardBatch", a.Svc.Flashcard.FlashcardBatch)
+	bind(srv, "FlashcardImportCsv", a.Svc.Flashcard.FlashcardImportCsv)
+	bind(srv, "FlashcardExportAnki", a.Svc.Flashcard.FlashcardExportAnki)
+
 	// 统计（新增 API：DashboardGet）
 	bind(srv, "DashboardGet", a.Svc.Dashboard.DashboardGet)
 

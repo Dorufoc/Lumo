@@ -33,6 +33,7 @@ type Services struct {
 	Dashboard *DashboardService
 	Document  *DocumentService
 	Sync      *SyncService
+	Flashcard *FlashcardService
 
 	// SwapDB 由 app 层注入：关闭旧连接、以 newPath 替换数据库主文件、
 	// 打开新连接并返回（BackupRestore 使用）。
@@ -73,6 +74,7 @@ func New(repo *repository.Repo, cfg *config.Config) *Services {
 	s.Dashboard = &DashboardService{s: s}
 	s.Document = &DocumentService{s: s}
 	s.Sync = &SyncService{s: s}
+	s.Flashcard = &FlashcardService{s: s}
 	return s
 }
 

@@ -326,3 +326,101 @@ export interface DocumentPage {
   next_cursor: string
   has_more: boolean
 }
+
+// ---------- 4.9 闪卡模块（API 设计文档 7.2） ----------
+
+export interface Flashcard {
+  id: string
+  workspace_id: string
+  source: 'knowledge' | 'note' | 'document' | 'manual'
+  source_ref?: string
+  front: string
+  back: string
+  card_type: 'basic' | 'choice' | 'cloze' | 'code'
+  state: 'learning' | 'review' | 'mastered' | 'archived'
+  repetition: number
+  interval_days: number
+  ease_factor: number
+  due_at: string
+  created_at: string
+  updated_at: string
+  version: number
+}
+
+export interface FlashcardCreateReq {
+  workspace_id: string
+  user_id: string
+  source: string
+  source_ref?: string
+  front: string
+  back: string
+  card_type?: string
+}
+
+export interface FlashcardGenerateReq {
+  workspace_id: string
+  user_id: string
+  source_ref: string
+  idempotency_key: string
+}
+
+export interface FlashcardListDueReq {
+  workspace_id: string
+  user_id: string
+  due_before?: string
+  limit?: number
+}
+
+export interface FlashcardReviewReq {
+  workspace_id: string
+  flashcard_id: string
+  rating: 'again' | 'hard' | 'good'
+  idempotency_key: string
+}
+
+export interface FlashcardBatchReq {
+  workspace_id: string
+  action: 'archive' | 'delete' | 'reset'
+  ids: string[]
+}
+
+export interface BatchError {
+  id: string
+  error: string
+}
+
+export interface BatchResult {
+  success_count: number
+  error_count: number
+  errors?: BatchError[]
+}
+
+export interface FlashcardImportCsvReq {
+  workspace_id: string
+  user_id: string
+  file_path: string
+  idempotency_key: string
+}
+
+export interface FlashcardImportBatch {
+  id: string
+  workspace_id: string
+  idempotency_key: string
+  file_name: string
+  file_hash: string
+  format: string
+  status: string
+  total_count: number
+  valid_count: number
+  error_count: number
+  created_at: string
+  updated_at: string
+  items?: { id: string; item_no: number; payload: Record<string, unknown>; status: string }[]
+}
+
+export interface ExportResult {
+  path: string
+  file_name: string
+  format: string
+  size_bytes: number
+}
