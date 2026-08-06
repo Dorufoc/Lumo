@@ -431,4 +431,46 @@ export const enUS: Messages = {
     answeredCount: 'Answered {answered} / {total}',
     sectionTitle: 'All Questions',
   },
+  checkin: {
+    title: 'Check-in Achievements',
+    subtitle: 'Daily learning check-in, build streaks & achievements',
+    streakLabel: 'Current streak',
+    totalLabel: 'Total check-ins',
+    timesUnit: 'times',
+    checkinButton: 'Check in today',
+    checkedToday: 'Checked in today',
+    checkinHint: 'Once per day, max 3 makeup check-ins per month',
+    checked: 'Checked in ({date})',
+    achievementUnlocked: 'Achievement unlocked: {title}',
+    makeupTitle: 'Makeup Check-in',
+    makeupButton: 'Makeup check-in',
+    makeupDone: 'Makeup check-in done ({date})',
+    makeupHint: 'Pick a past date you missed to make up',
+    achievementsTitle: 'Achievements',
+    achievementsEmpty: 'No achievements yet, check in to light them up',
+  },
+  achievement: {
+    firstCheckin: {
+      title: 'First Check-in',
+      description: 'Complete your first check-in',
+    },
+    streak3: {
+      title: '3-Day Streak',
+      description: 'Check in 3 days in a row',
+    },
+    streak7: {
+      title: '7-Day Streak',
+      description: 'Check in 7 days in a row',
+    },
+    total10: {
+      title: '10 Check-ins',
+      description: 'Accumulate 10 check-ins',
+    },
+    total30: {
+      title: '30 Check-ins',
+      description: 'Accumulate 30 check-ins',
+    },
+    unlocked: 'Unlocked',
+    locked: 'Locked',
+  },
 }

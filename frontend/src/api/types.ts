@@ -619,3 +619,56 @@ export interface ExamGetResultReq {
   workspace_id: string
   exam_id: string
 }
+
+// ---------- 4.11 打卡与成就（API 设计文档 7.4） ----------
+
+export interface Checkin {
+  id: string
+  user_id: string
+  date: string
+  kind: 'normal' | 'makeup'
+  minutes: number
+  created_at: string
+}
+
+export interface CheckinCreateReq {
+  workspace_id: string
+  user_id: string
+  minutes?: number
+  idempotency_key: string
+}
+
+export interface CheckinMakeupReq {
+  workspace_id: string
+  user_id: string
+  date: string
+  minutes?: number
+  idempotency_key: string
+}
+
+export interface Streak {
+  user_id: string
+  date: string
+  streak: number
+  total_checkins: number
+}
+
+export interface AchievementView {
+  id: string
+  code: string
+  title_key: string
+  description_key: string
+  icon: string
+  is_unlocked: boolean
+  awarded_at: string | null
+}
+
+export interface AchievementListReq {
+  workspace_id: string
+  user_id: string
+}
+
+export interface StreakGetReq {
+  workspace_id: string
+  user_id: string
+}

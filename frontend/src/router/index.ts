@@ -11,6 +11,7 @@ const router = createRouter({
     { path: '/flashcards', name: 'flashcards', component: () => import('@/views/FlashcardsView.vue'), meta: { title: '闪卡' } },
     { path: '/exams', name: 'exams', component: () => import('@/views/ExamView.vue'), meta: { title: '组卷考试' } },
     { path: '/notes', name: 'notes', component: () => import('@/views/NotesView.vue'), meta: { title: '笔记' } },
+    { path: '/checkin', name: 'checkin', component: () => import('@/views/CheckinView.vue'), meta: { title: '打卡成就' } },
     { path: '/plan', name: 'plan', component: () => import('@/views/PlanView.vue'), meta: { title: '计划' } },
     { path: '/library', name: 'library', component: () => import('@/views/LibraryView.vue'), meta: { title: '题库与资料' } },
     { path: '/tutor', name: 'tutor', component: () => import('@/views/TutorView.vue'), meta: { title: 'AI Tutor' } },

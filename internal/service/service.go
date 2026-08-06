@@ -37,6 +37,7 @@ type Services struct {
 	Flashcard *FlashcardService
 	Note      *NoteService
 	Exam      *ExamService
+	Checkin   *CheckinService
 
 	// SwapDB 由 app 层注入：关闭旧连接、以 newPath 替换数据库主文件、
 	// 打开新连接并返回（BackupRestore 使用）。
@@ -80,6 +81,7 @@ func New(repo *repository.Repo, cfg *config.Config) *Services {
 	s.Flashcard = &FlashcardService{s: s}
 	s.Note = &NoteService{s: s}
 	s.Exam = &ExamService{s: s, Now: time.Now}
+	s.Checkin = &CheckinService{s: s, Now: time.Now}
 	return s
 }
 

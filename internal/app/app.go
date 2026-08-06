@@ -177,6 +177,12 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "ExamAutoSubmit", a.Svc.Exam.ExamAutoSubmit)
 	bind(srv, "ExamGetResult", a.Svc.Exam.ExamGetResult)
 
+	// 打卡与成就（API 文档 7.4）
+	bind(srv, "CheckinCreate", a.Svc.Checkin.CheckinCreate)
+	bind(srv, "CheckinMakeup", a.Svc.Checkin.CheckinMakeup)
+	bind(srv, "AchievementList", a.Svc.Checkin.AchievementList)
+	bind(srv, "StreakGet", a.Svc.Checkin.StreakGet)
+
 	// 4.8 笔记与标注（API 文档 7.1）
 	bind(srv, "NoteCreate", a.Svc.Note.NoteCreate)
 	bind(srv, "NoteUpdate", a.Svc.Note.NoteUpdate)

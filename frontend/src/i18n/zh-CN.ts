@@ -425,6 +425,48 @@ const zhCN = {
     answeredCount: '已答 {answered} / {total} 题',
     sectionTitle: '全部题目',
   },
+  checkin: {
+    title: '打卡成就',
+    subtitle: '每日学习打卡，累积连击与成就',
+    streakLabel: '当前连续打卡',
+    totalLabel: '累计打卡',
+    timesUnit: '次',
+    checkinButton: '今日打卡',
+    checkedToday: '今日已打卡',
+    checkinHint: '每天可打卡一次，补签每月限 3 次',
+    checked: '打卡成功（{date}）',
+    achievementUnlocked: '解锁新成就：{title}',
+    makeupTitle: '补签',
+    makeupButton: '补签打卡',
+    makeupDone: '补签成功（{date}）',
+    makeupHint: '选择过去未打卡的日期进行补签',
+    achievementsTitle: '成就墙',
+    achievementsEmpty: '暂无成就，完成打卡即可点亮',
+  },
+  achievement: {
+    firstCheckin: {
+      title: '初次打卡',
+      description: '完成第一次打卡',
+    },
+    streak3: {
+      title: '三日连击',
+      description: '连续打卡 3 天',
+    },
+    streak7: {
+      title: '七日连击',
+      description: '连续打卡 7 天',
+    },
+    total10: {
+      title: '十次打卡',
+      description: '累计打卡 10 次',
+    },
+    total30: {
+      title: '三十次打卡',
+      description: '累计打卡 30 次',
+    },
+    unlocked: '已解锁',
+    locked: '未解锁',
+  },
 }
 
 // 把 zhCN 的字面量值类型放宽为 string，同时完整保留 key 嵌套结构 →
