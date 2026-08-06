@@ -251,12 +251,38 @@ func (p *PracticeService) PracticeSaveAnswer(ctx context.Context, req PracticeSa
 		return nil, domain.InvalidArg("题目不属于该会话")
 	}
 	// 显式幂等键防重放；无键时依赖客户端序号单调保护。
+	var draft *SubmissionDraft
+	var saveErr error
 	if req.IdempotencyKey == "" {
-		return p.upsertDraft(ctx, req)
+		draft, saveErr = p.upsertDraft(ctx, req)
+	} else {
+		draft, saveErr = withIdempotency(p.s, ctx, req.WorkspaceID, req.IdempotencyKey, "PracticeSaveAnswer", func() (*SubmissionDraft, error) {
+			return p.upsertDraft(ctx, req)
+		})
 	}
-	return withIdempotency(p.s, ctx, req.WorkspaceID, req.IdempotencyKey, "PracticeSaveAnswer", func() (*SubmissionDraft, error) {
-		return p.upsertDraft(ctx, req)
-	})
+	if saveErr != nil {
+		return nil, saveErr
+	}
+	// 考试会话：保存成功后惰性检查截止时间，到期自动提交并终止答题。
+	if session.Mode == "exam" {
+		if err := p.examExpiryGuard(ctx, req.WorkspaceID, req.SessionID); err != nil {
+			return nil, err
+		}
+	}
+	return draft, nil
+}
+
+// examExpiryGuard 考试到期钩子：保存/跳过成功落库后触发惰性自动提交。
+func (p *PracticeService) examExpiryGuard(ctx context.Context, wsID, sessionID string) error {
+	if p.s.Exam == nil {
+		return nil
+	}
+	if _, finalized, err := p.s.Exam.maybeAutoSubmit(ctx, wsID, sessionID, p.s.Exam.Now()); err != nil {
+		return err
+	} else if finalized {
+		return domain.InvalidState("考试已到截止时间自动提交，请查看考试结果")
+	}
+	return nil
 }
 
 // upsertDraft 执行草稿写入（序号单调校验）。
@@ -324,6 +350,12 @@ func (p *PracticeService) PracticeSkipQuestion(ctx context.Context, req Practice
 		string(mustJSON(skipped)), req.SessionID); err != nil {
 		return nil, dbErr(err)
 	}
+	// 考试会话：跳过成功后惰性检查截止时间，到期自动提交并终止答题。
+	if session.Mode == "exam" {
+		if err := p.examExpiryGuard(ctx, req.WorkspaceID, req.SessionID); err != nil {
+			return nil, err
+		}
+	}
 	return p.sessionByID(ctx, req.WorkspaceID, req.SessionID)
 }
 
@@ -342,6 +374,14 @@ func (p *PracticeService) PracticeSubmit(ctx context.Context, req PracticeSubmit
 	}
 	if req.IdempotencyKey == "" {
 		return nil, domain.InvalidArg("idempotency_key 必填")
+	}
+	// 考试会话禁止经练习提交入口手动提交：考试仅由 ExamAutoSubmit 到期自动判分。
+	session, err := p.s.Repo.GetSession(ctx, req.WorkspaceID, req.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	if session != nil && session.Mode == "exam" {
+		return nil, domain.InvalidState("考试会话不支持手动提交，请使用 ExamAutoSubmit")
 	}
 	return withIdempotency(p.s, ctx, req.WorkspaceID, req.IdempotencyKey, "PracticeSubmit", func() (*PracticeResult, error) {
 		return p.doSubmit(ctx, req.WorkspaceID, req.SessionID, req.Version)

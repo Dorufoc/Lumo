@@ -521,3 +521,101 @@ export interface DeleteResult {
   deleted: boolean
   deleted_at: string
 }
+
+// ---------- 4.10 组卷考试模块（API 设计文档 7.3） ----------
+
+export interface ExamPaperSection {
+  id: string
+  paper_id: string
+  title: string
+  order_no: number
+  question_version_ids: string[]
+  score: number
+}
+
+export interface ExamPaper {
+  id: string
+  workspace_id: string
+  user_id: string
+  title: string
+  config_json: Record<string, unknown>
+  status: 'draft' | 'published' | 'archived'
+  sections: ExamPaperSection[]
+  version: number
+  created_at: string
+  updated_at: string
+}
+
+export interface Exam {
+  id: string
+  paper_id: string
+  user_id: string
+  status: 'created' | 'answering' | 'graded'
+  duration_min: number
+  started_at: string | null
+  ended_at: string | null
+  questions: PracticeQuestion[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ExamResult {
+  exam_id: string
+  paper_id: string
+  status: string
+  total_score: number
+  max_score: number
+  duration_min: number
+  started_at: string | null
+  ended_at: string | null
+  questions: ResultQuestion[]
+  wrong_answers: { id: string; question_version_id: string; cause: string; status: string }[]
+  review_actions: { review_card_id: string; wrong_answer_id: string; due_at: string }[]
+}
+
+export interface ExamAutoGenerateConfig {
+  knowledge_ratio: Record<string, number>
+  difficulty_dist: Record<string, number>
+  count: number
+  types: string[]
+  duration_min: number
+}
+
+export interface ExamPaperCreateReq {
+  workspace_id: string
+  user_id: string
+  title: string
+  config_json: Record<string, unknown>
+  idempotency_key: string
+}
+
+export interface ExamPaperAutoGenerateReq {
+  workspace_id: string
+  user_id: string
+  title: string
+  config: ExamAutoGenerateConfig
+  idempotency_key: string
+}
+
+export interface ExamPaperPublishReq {
+  workspace_id: string
+  paper_id: string
+  version: number
+}
+
+export interface ExamStartReq {
+  workspace_id: string
+  user_id: string
+  paper_id: string
+  idempotency_key: string
+}
+
+export interface ExamAutoSubmitReq {
+  workspace_id: string
+  exam_id: string
+}
+
+export interface ExamGetResultReq {
+  workspace_id: string
+  exam_id: string
+}

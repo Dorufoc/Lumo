@@ -168,6 +168,15 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "FlashcardImportCsv", a.Svc.Flashcard.FlashcardImportCsv)
 	bind(srv, "FlashcardExportAnki", a.Svc.Flashcard.FlashcardExportAnki)
 
+	// 组卷考试模块（API 文档 7.3）
+	bind(srv, "ExamPaperList", a.Svc.Exam.ExamPaperList)
+	bind(srv, "ExamPaperCreate", a.Svc.Exam.ExamPaperCreate)
+	bind(srv, "ExamPaperAutoGenerate", a.Svc.Exam.ExamPaperAutoGenerate)
+	bind(srv, "ExamPaperPublish", a.Svc.Exam.ExamPaperPublish)
+	bind(srv, "ExamStart", a.Svc.Exam.ExamStart)
+	bind(srv, "ExamAutoSubmit", a.Svc.Exam.ExamAutoSubmit)
+	bind(srv, "ExamGetResult", a.Svc.Exam.ExamGetResult)
+
 	// 4.8 笔记与标注（API 文档 7.1）
 	bind(srv, "NoteCreate", a.Svc.Note.NoteCreate)
 	bind(srv, "NoteUpdate", a.Svc.Note.NoteUpdate)
