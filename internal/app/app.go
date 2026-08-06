@@ -199,6 +199,17 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "MilestoneCreate", a.Svc.Calendar.MilestoneCreate)
 	bind(srv, "MilestoneEvaluate", a.Svc.Calendar.MilestoneEvaluate)
 
+	// 班级管理（API 文档 7.11 / 完整设计文档 4.22）
+	bind(srv, "ClassCreate", a.Svc.Classes.ClassCreate)
+	bind(srv, "ClassList", a.Svc.Classes.ClassList)
+	bind(srv, "ClassGet", a.Svc.Classes.ClassGet)
+	bind(srv, "ClassUpdate", a.Svc.Classes.ClassUpdate)
+	bind(srv, "ClassArchive", a.Svc.Classes.ClassArchive)
+	bind(srv, "ClassInvite", a.Svc.Classes.ClassInvite)
+	bind(srv, "ClassMemberAdd", a.Svc.Classes.ClassMemberAdd)
+	bind(srv, "ClassMemberRemove", a.Svc.Classes.ClassMemberRemove)
+	bind(srv, "ClassMemberList", a.Svc.Classes.ClassMemberList)
+
 	// 提醒与通知（API 文档 7.7 / 完整设计文档 4.14）
 	bind(srv, "ReminderUpsert", a.Svc.Reminder.ReminderUpsert)
 	bind(srv, "ReminderTestSend", a.Svc.Reminder.ReminderTestSend)

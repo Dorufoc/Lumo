@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useSessionStore } from '@/stores/session'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -20,9 +21,21 @@ const router = createRouter({
     { path: '/calendar', name: 'calendar', component: () => import('@/views/CalendarView.vue'), meta: { title: '日历' } },
     { path: '/library', name: 'library', component: () => import('@/views/LibraryView.vue'), meta: { title: '题库与资料' } },
     { path: '/tutor', name: 'tutor', component: () => import('@/views/TutorView.vue'), meta: { title: 'AI Tutor' } },
+    { path: '/classes', name: 'classes', component: () => import('@/views/ClassesView.vue'), meta: { title: '班级', roles: ['teacher', 'student'] } },
     { path: '/settings', name: 'settings', component: () => import('@/views/SettingsView.vue'), meta: { title: '设置与数据' } },
     { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
   ],
+})
+
+// 路由级角色守卫：路由声明 meta.roles 时校验当前用户角色；
+// 会话未就绪（bootstrap 前）放行，由 App.vue 统一处理引导态。
+router.beforeEach((to) => {
+  const allowed = to.meta.roles as string[] | undefined
+  if (!allowed || allowed.length === 0) return true
+  const session = useSessionStore()
+  if (!session.user) return true
+  if (allowed.includes(session.user.role)) return true
+  return { name: 'dashboard' }
 })
 
 export default router

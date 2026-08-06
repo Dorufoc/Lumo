@@ -448,8 +448,13 @@ Content-Type: application/json
 | 方法 | 请求要点 | 返回 |
 |---|---|---|
 | `ClassCreate` | `name`, `subject`, `semester`, `idempotency_key` | `Class` |
-| `ClassInvite` | `class_id` | `InviteCode` |
+| `ClassList` | `user_id` | `Class[]`（教师=创建班级；学生=加入班级） |
+| `ClassGet` | `class_id`, `user_id` | `Class`（创建者或 active 成员） |
+| `ClassUpdate` | `class_id`, `name?`, `subject?`, `semester?`（教师） | `Class` |
+| `ClassArchive` | `class_id`（教师，active→archived） | `Class` |
+| `ClassInvite` | `class_id` | `InviteCode`（每次调用重新生成 8 位码） |
 | `ClassMemberAdd/Remove` | `class_id`, `student_user_id` | `Class` |
+| `ClassMemberList` | `class_id`, `user_id` | `ClassMember[]`（含 display_name） |
 | `AssignmentCreate` | `class_id`, `paper_id`, `title`, `due_at`, `grading_rule` | `Assignment` |
 | `AssignmentPublish` | `assignment_id`, `version` | `Assignment`（版本冻结） |
 | `AssignmentSubmit` | `assignment_id`, 答案（学生端） | `AssignmentSubmission` |

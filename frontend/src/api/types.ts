@@ -1111,3 +1111,98 @@ export interface HealthStats {
   sedentary_count: number
   rest_completion_rate: number
 }
+
+// ---------- 4.22 班级管理（API 文档 7.11） ----------
+
+/** 班级 DTO。 */
+export interface Class {
+  id: string
+  workspace_id: string
+  owner_user_id: string
+  name: string
+  subject: string
+  semester: string
+  status: 'active' | 'archived'
+  invite_code: string
+  member_count: number
+  created_at: string
+  updated_at: string
+}
+
+/** 班级邀请码 DTO。 */
+export interface InviteCode {
+  class_id: string
+  code: string
+}
+
+/** 班级成员 DTO。 */
+export interface ClassMember {
+  id: string
+  class_id: string
+  student_user_id: string
+  display_name: string
+  status: 'active' | 'removed'
+  joined_at: string
+}
+
+export interface ClassCreateReq {
+  workspace_id: string
+  user_id: string
+  name: string
+  subject?: string
+  semester?: string
+  idempotency_key: string
+}
+
+export interface ClassListReq {
+  workspace_id: string
+  user_id: string
+}
+
+export interface ClassGetReq {
+  workspace_id: string
+  user_id: string
+  class_id: string
+}
+
+export interface ClassUpdateReq {
+  workspace_id: string
+  user_id: string
+  class_id: string
+  name?: string
+  subject?: string
+  semester?: string
+}
+
+export interface ClassArchiveReq {
+  workspace_id: string
+  user_id: string
+  class_id: string
+}
+
+export interface ClassInviteReq {
+  workspace_id: string
+  user_id: string
+  class_id: string
+}
+
+export interface ClassMemberAddReq {
+  workspace_id: string
+  user_id: string
+  class_id: string
+  student_user_id: string
+  idempotency_key: string
+}
+
+export interface ClassMemberRemoveReq {
+  workspace_id: string
+  user_id: string
+  class_id: string
+  student_user_id: string
+}
+
+export interface ClassMemberListReq {
+  workspace_id: string
+  user_id: string
+  class_id: string
+}
