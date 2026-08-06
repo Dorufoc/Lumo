@@ -133,7 +133,7 @@ const fillText = computed(() => (typeof stdAnswer.value === 'string' ? stdAnswer
         <span v-else-if="grading?.status === 'needs_review'" class="badge badge-warning">待复核</span>
       </div>
       <div v-if="grading?.reason" class="text-secondary mb-3" style="white-space: pre-wrap">{{ grading.reason }}</div>
-      <div v-if="payload.analysis" class="card" style="background: var(--color-primary-soft); border-color: #bfdbfe">
+      <div v-if="payload.analysis" class="card" style="background: var(--color-primary-soft); border-color: var(--color-primary)">
         <div class="card-title" style="font-size: var(--text-base)">解析</div>
         <div style="white-space: pre-wrap">{{ payload.analysis }}</div>
       </div>

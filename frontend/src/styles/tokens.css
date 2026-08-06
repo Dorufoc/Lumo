@@ -56,6 +56,17 @@
   --color-bg-glass: rgba(255, 255, 255, 0.72);
   --backdrop-blur: 12px;
 
+  /* 侧边栏玻璃（7.5.3：高面积浮层使用玻璃光感；深色表面保证文字对比度） */
+  --color-bg-glass-sidebar: rgba(15, 23, 42, 0.9);
+  --backdrop-blur-sidebar: 16px;
+
+  /* 背景氛围（7.5.3：body 暖色径向渐变光晕 mesh，浅色底保持 AA 对比） */
+  --bg-glow: radial-gradient(1000px 620px at 12% -12%, rgba(255, 89, 40, 0.1), transparent 62%),
+    radial-gradient(920px 520px at 112% 112%, rgba(251, 160, 41, 0.12), transparent 58%);
+
+  /* 遮罩（模态框/抽屉背板） */
+  --overlay: rgba(15, 23, 42, 0.4);
+
   /* 光效（7.5.3：主操作暖色外发光，低透明度渐变阴影） */
   --glow-primary: 0 8px 24px rgba(255, 89, 40, 0.28), 0 2px 8px rgba(251, 160, 41, 0.22);
 
@@ -144,6 +155,17 @@
   /* 玻璃拟态：降低透明度并加深模糊，保证浮层与背景可区分（7.5.5） */
   --color-bg-glass: rgba(38, 35, 32, 0.6);
   --backdrop-blur: 16px;
+
+  /* 侧边栏玻璃：深色下降低透明度、加深模糊（7.5.5） */
+  --color-bg-glass-sidebar: rgba(20, 17, 15, 0.85);
+  --backdrop-blur-sidebar: 20px;
+
+  /* 背景氛围：低亮度暖光晕（7.5.5，禁用纯黑背景） */
+  --bg-glow: radial-gradient(1000px 620px at 12% -12%, rgba(255, 89, 40, 0.06), transparent 62%),
+    radial-gradient(920px 520px at 112% 112%, rgba(251, 160, 41, 0.05), transparent 58%);
+
+  /* 遮罩：深色下加深，保证浮层与背板可分 */
+  --overlay: rgba(0, 0, 0, 0.55);
 
   /* 光效：低亮度暖光（7.5.5） */
   --glow-primary: 0 8px 24px rgba(255, 89, 40, 0.18), 0 2px 8px rgba(251, 160, 41, 0.14);

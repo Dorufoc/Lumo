@@ -73,7 +73,7 @@ async function selectWorkspace(id: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(160deg, #eff6ff 0%, #f8fafc 60%);
+  background: var(--gradient-soft), var(--bg-glow), var(--bg);
 }
 .onboarding-card {
   width: 420px;
@@ -95,11 +95,13 @@ async function selectWorkspace(id: string) {
   padding: 10px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--bg-surface);
+  background: var(--color-bg-glass);
   cursor: pointer;
   text-align: left;
+  transition: border-color 0.2s var(--ease-out), transform 0.2s var(--ease-out);
 }
 .ws-item:hover {
   border-color: var(--color-primary);
+  transform: translateY(-1px);
 }
 </style>
