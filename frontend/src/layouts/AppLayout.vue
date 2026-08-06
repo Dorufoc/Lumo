@@ -7,6 +7,7 @@ const nav = [
   { name: 'dashboard', to: '/dashboard', icon: '📊', labelKey: 'nav.dashboard' },
   { name: 'practice', to: '/practice', icon: '✏️', labelKey: 'nav.practice' },
   { name: 'plan', to: '/plan', icon: '📅', labelKey: 'nav.plan' },
+  { name: 'calendar', to: '/calendar', icon: '🗓️', labelKey: 'nav.calendar' },
   { name: 'review', to: '/review', icon: '🔁', labelKey: 'nav.review' },
   { name: 'reports', to: '/reports', icon: '📈', labelKey: 'nav.reports' },
   { name: 'library', to: '/library', icon: '📚', labelKey: 'nav.library' },

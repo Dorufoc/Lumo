@@ -985,3 +985,93 @@ export interface DocumentSummarizeReq {
   document_id: string
   idempotency_key: string
 }
+
+// ---------- 日历与里程碑（API 文档 7.9 / 完整设计文档 4.16） ----------
+
+/** 日历月视图单日投影条目（任务/复习/考试/打卡/专注/个人事件）。 */
+export interface CalendarEntry {
+  kind: 'task' | 'review' | 'exam' | 'checkin' | 'focus' | 'personal'
+  ref_id: string
+  title: string
+  event_date: string
+  start_time: string | null
+  duration_min: number
+}
+
+/** CalendarGetMonth 响应。 */
+export interface CalendarMonth {
+  month: string
+  entries: CalendarEntry[]
+}
+
+/** 个人日历事件 DTO。 */
+export interface CalendarEvent {
+  id: string
+  workspace_id: string
+  user_id: string
+  kind: string
+  ref_id: string | null
+  event_date: string
+  start_time: string | null
+  duration_min: number
+  title: string
+  note: string
+  created_at: string
+  updated_at: string
+}
+
+/** 目标里程碑 DTO。 */
+export interface Milestone {
+  id: string
+  goal_id: string
+  title: string
+  due_at: string
+  criteria_json: MilestoneCriteria
+  status: 'pending' | 'achieved' | 'not_met'
+  achieved_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** 里程碑验收条件（服务端 ParseMilestoneCriteria）。 */
+export interface MilestoneCriteria {
+  type: 'practice' | 'tasks'
+  count: number
+  min_accuracy?: number
+}
+
+export interface CalendarGetMonthReq {
+  workspace_id: string
+  user_id: string
+  month: string
+}
+
+export interface CalendarEventUpsertReq {
+  workspace_id: string
+  user_id: string
+  event_id?: string
+  kind: 'personal'
+  ref_id?: string | null
+  event_date: string
+  start_time?: string | null
+  duration_min: number
+  title: string
+  note?: string
+  idempotency_key: string
+}
+
+export interface MilestoneCreateReq {
+  workspace_id: string
+  user_id: string
+  goal_id: string
+  title: string
+  due_at: string
+  criteria_json: MilestoneCriteria
+  idempotency_key: string
+}
+
+export interface MilestoneEvaluateReq {
+  workspace_id: string
+  user_id: string
+  milestone_id: string
+}

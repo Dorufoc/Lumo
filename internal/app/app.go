@@ -193,6 +193,12 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "TimerEnd", a.Svc.Focus.TimerEnd)
 	bind(srv, "TimerStats", a.Svc.Focus.TimerStats)
 
+	// 日历与里程碑（API 文档 7.9 / 完整设计文档 4.16）
+	bind(srv, "CalendarGetMonth", a.Svc.Calendar.CalendarGetMonth)
+	bind(srv, "CalendarEventUpsert", a.Svc.Calendar.CalendarEventUpsert)
+	bind(srv, "MilestoneCreate", a.Svc.Calendar.MilestoneCreate)
+	bind(srv, "MilestoneEvaluate", a.Svc.Calendar.MilestoneEvaluate)
+
 	// 提醒与通知（API 文档 7.7 / 完整设计文档 4.14）
 	bind(srv, "ReminderUpsert", a.Svc.Reminder.ReminderUpsert)
 	bind(srv, "ReminderTestSend", a.Svc.Reminder.ReminderTestSend)
