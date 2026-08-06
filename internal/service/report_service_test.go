@@ -402,21 +402,28 @@ func TestReportExportJSONAndPDF(t *testing.T) {
 		t.Fatal("exported json is not valid JSON")
 	}
 
-	// PDF 导出（本机存在 CJK 字体 → pdf；否则回退 json）
+	// PDF 导出：存在 CJK 字体时必须真正渲染成功（format=pdf 且文件以 %PDF 开头）；
+	// 无 CJK 字体（如 CI 无字体机器）时允许回退 json。
 	pdfRes, err := s.Report.ReportExport(ctx(), ReportExportReq{
 		WorkspaceID: ws.ID, ReportID: rep.ID, Format: "pdf",
 	})
 	if err != nil {
 		t.Fatalf("export pdf: %v", err)
 	}
-	if pdfRes.Format != "pdf" && pdfRes.Format != "json" {
-		t.Fatalf("unexpected pdf export format: %s", pdfRes.Format)
-	}
 	b, err := os.ReadFile(filepath.Join(cfg.DataDir, pdfRes.Path))
 	if err != nil {
 		t.Fatalf("read pdf export: %v", err)
 	}
-	if pdfRes.Format == "pdf" && !strings.HasPrefix(string(b), "%PDF") {
+	if reportCJKFontBytes() != nil {
+		// 本机（如 Windows C:\Windows\Fonts\Deng.ttf）存在 CJK 字体：
+		// 回归「undefined font: cjk B」缺陷——必须产出真实 PDF，而非回退 json。
+		if pdfRes.Format != "pdf" {
+			t.Fatalf("CJK font present but pdf export fell back to %s (path=%s, bytes=%d)", pdfRes.Format, pdfRes.Path, len(b))
+		}
+		if !strings.HasPrefix(string(b), "%PDF") {
+			t.Fatal("pdf export does not start with %PDF magic")
+		}
+	} else if pdfRes.Format == "pdf" && !strings.HasPrefix(string(b), "%PDF") {
 		t.Fatal("pdf export does not start with %PDF magic")
 	}
 }

@@ -706,6 +706,9 @@ func renderReportPDF(payload *domain.ReportPayload) ([]byte, error) {
 	cjk := reportCJKFontBytes()
 	if cjk != nil {
 		pdf.AddUTF8FontFromBytes("cjk", "", cjk)
+		// SetFont("cjk", "B", ...) 会按 family+style 精确查找变体，
+		// 只注册常规样式会导致 "undefined font: cjk B"，必须同时注册粗体变体。
+		pdf.AddUTF8FontFromBytes("cjk", "B", cjk)
 	}
 	family := "Helvetica"
 	if cjk != nil {
