@@ -9,6 +9,7 @@ const nav = [
   { name: 'plan', to: '/plan', icon: '📅', labelKey: 'nav.plan' },
   { name: 'calendar', to: '/calendar', icon: '🗓️', labelKey: 'nav.calendar' },
   { name: 'classes', to: '/classes', icon: '🏫', labelKey: 'nav.classes' },
+  { name: 'assignments', to: '/assignments', icon: '📝', labelKey: 'nav.assignments' },
   { name: 'review', to: '/review', icon: '🔁', labelKey: 'nav.review' },
   { name: 'reports', to: '/reports', icon: '📈', labelKey: 'nav.reports' },
   { name: 'health', to: '/health', icon: '🏥', labelKey: 'nav.health' },

@@ -1206,3 +1206,74 @@ export interface ClassMemberListReq {
   user_id: string
   class_id: string
 }
+
+// ---------- 作业（API 文档 7.11 / 完整设计文档 4.22） ----------
+
+/** 作业 DTO。 */
+export interface Assignment {
+  id: string
+  class_id: string
+  paper_id: string
+  title: string
+  due_at: string
+  grading_rule: 'auto' | 'teacher' | 'hybrid'
+  status: 'draft' | 'published' | 'closed'
+  version: number
+  created_at: string
+  updated_at: string
+}
+
+/** 作业单题作答。 */
+export interface AssignmentAnswer {
+  question_version_id: string
+  answer: unknown
+}
+
+/** 作业提交记录 DTO。 */
+export interface AssignmentSubmission {
+  id: string
+  assignment_id: string
+  student_user_id: string
+  display_name: string
+  submission_id: string | null
+  grade_json: Record<string, unknown>
+  graded_at: string | null
+  created_at: string
+}
+
+export interface AssignmentCreateReq {
+  workspace_id: string
+  user_id: string
+  class_id: string
+  paper_id: string
+  title: string
+  due_at: string
+  grading_rule: 'auto' | 'teacher' | 'hybrid'
+  idempotency_key: string
+}
+
+export interface AssignmentPublishReq {
+  workspace_id: string
+  user_id: string
+  assignment_id: string
+  version: number
+}
+
+export interface AssignmentSubmitReq {
+  workspace_id: string
+  user_id: string
+  assignment_id: string
+  answers: AssignmentAnswer[]
+  idempotency_key: string
+}
+
+export interface AssignmentListReq {
+  workspace_id: string
+  user_id: string
+}
+
+export interface AssignmentSubmissionListReq {
+  workspace_id: string
+  user_id: string
+  assignment_id: string
+}

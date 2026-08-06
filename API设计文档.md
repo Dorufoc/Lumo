@@ -458,6 +458,8 @@ Content-Type: application/json
 | `AssignmentCreate` | `class_id`, `paper_id`, `title`, `due_at`, `grading_rule` | `Assignment` |
 | `AssignmentPublish` | `assignment_id`, `version` | `Assignment`（版本冻结） |
 | `AssignmentSubmit` | `assignment_id`, 答案（学生端） | `AssignmentSubmission` |
+| `AssignmentList` | `workspace_id`, `user_id` | `Assignment[]`（教师=创建班级；学生=加入班级） |
+| `AssignmentSubmissionList` | `workspace_id`, `user_id`, `assignment_id` | `AssignmentSubmission[]`（教师） |
 | `AssignmentGrade` | `submission_id`, `grade_json`（教师） | `AssignmentSubmission` |
 | `AppealCreate` | `grading_id`, `reason` | `Appeal` |
 | `AppealResolve` | `appeal_id`, `decision` | `Appeal` |

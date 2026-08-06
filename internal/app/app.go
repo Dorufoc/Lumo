@@ -210,6 +210,13 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "ClassMemberRemove", a.Svc.Classes.ClassMemberRemove)
 	bind(srv, "ClassMemberList", a.Svc.Classes.ClassMemberList)
 
+	// 作业（API 文档 7.11 / 完整设计文档 4.22）
+	bind(srv, "AssignmentCreate", a.Svc.Assignments.AssignmentCreate)
+	bind(srv, "AssignmentPublish", a.Svc.Assignments.AssignmentPublish)
+	bind(srv, "AssignmentSubmit", a.Svc.Assignments.AssignmentSubmit)
+	bind(srv, "AssignmentList", a.Svc.Assignments.AssignmentList)
+	bind(srv, "AssignmentSubmissionList", a.Svc.Assignments.AssignmentSubmissionList)
+
 	// 提醒与通知（API 文档 7.7 / 完整设计文档 4.14）
 	bind(srv, "ReminderUpsert", a.Svc.Reminder.ReminderUpsert)
 	bind(srv, "ReminderTestSend", a.Svc.Reminder.ReminderTestSend)
