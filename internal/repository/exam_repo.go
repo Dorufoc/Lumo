@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 
 	"lumo/internal/domain"
 )
@@ -236,5 +235,3 @@ func (r *Repo) UpdateExamEnded(ctx context.Context, id, endedAt string) error {
 		WHERE id = ?`, endedAt, id)
 	return normalizeErr(err)
 }
-
-var _ = json.Marshal

@@ -1,9 +1,6 @@
 package domain
 
-import (
-	"encoding/json"
-	"fmt"
-)
+import "encoding/json"
 
 // ExamPaperSectionConfig 是试卷 config_json 中的大题配置。
 type ExamPaperSectionConfig struct {
@@ -97,5 +94,3 @@ func (c *ExamPaperConfig) SectionTitles() []string {
 	}
 	return out
 }
-
-var _ = fmt.Sprintf
