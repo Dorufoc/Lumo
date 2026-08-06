@@ -389,6 +389,37 @@ export const enUS: Messages = {
     exam_auto_submitted: {
       title: 'Exam auto-submitted',
     },
+    reminder_triggered: {
+      title: 'Reminder triggered',
+    },
+  },
+  reminder: {
+    title: 'Reminder settings',
+    subtitle: 'Schedule periodic reminders; fired items land in the notification center',
+    kinds: {
+      review: 'Review reminder',
+      goal: 'Goal reminder',
+      exam: 'Exam reminder',
+      streak: 'Learning streak',
+      health: 'Health reminder',
+    },
+    intervalMinutes: 'Interval (minutes)',
+    repeat: 'Repeat',
+    enable: 'Enabled',
+    disable: 'Disabled',
+    testSend: 'Send test',
+    testSent: 'Test notification sent ({kind})',
+    upserted: 'Reminder saved ({kind})',
+  },
+  notifications: {
+    title: 'Notifications',
+    empty: 'No notifications yet',
+    unread: '{count} unread',
+    markAllRead: 'Mark all read',
+    markAllReadDone: 'Marked {count} as read',
+    unreadOnly: 'Unread only',
+    kindLabel: 'Kind',
+    loadMore: 'Load more',
   },
   exam: {
     title: 'Exams',

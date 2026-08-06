@@ -39,6 +39,11 @@ type Services struct {
 	Exam      *ExamService
 	Checkin   *CheckinService
 	Focus     *FocusService
+	Reminder  *ReminderService
+
+	// UserEvents 用户级领域事件总线：领域事件（reminder:triggered 等）经此持久化通知并广播。
+	// app 层将其与 agent.Service.UserEvents 指向同一实例（SSE 订阅端复用），见 app.go。
+	UserEvents *agent.UserEventBus
 
 	// SwapDB 由 app 层注入：关闭旧连接、以 newPath 替换数据库主文件、
 	// 打开新连接并返回（BackupRestore 使用）。
@@ -84,6 +89,10 @@ func New(repo *repository.Repo, cfg *config.Config) *Services {
 	s.Exam = &ExamService{s: s, Now: time.Now}
 	s.Checkin = &CheckinService{s: s, Now: time.Now}
 	s.Focus = &FocusService{s: s, Now: time.Now}
+	s.Reminder = &ReminderService{s: s, Now: time.Now}
+	// 用户级事件总线由服务层持有；app.New 会把 a.Agent.UserEvents 指向同一实例，
+	// 使服务层发布的事件能被 SSE 订阅者接收（见 internal/app/app.go 注释）。
+	s.UserEvents = agent.NewUserEventBus(repo)
 	return s
 }
 

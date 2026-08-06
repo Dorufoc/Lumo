@@ -383,6 +383,37 @@ const zhCN = {
     exam_auto_submitted: {
       title: '考试已自动提交',
     },
+    reminder_triggered: {
+      title: '提醒触发',
+    },
+  },
+  reminder: {
+    title: '提醒设置',
+    subtitle: '按规则定时提醒，触发后进入通知中心',
+    kinds: {
+      review: '复习提醒',
+      goal: '目标提醒',
+      exam: '考试提醒',
+      streak: '连续学习提醒',
+      health: '健康提醒',
+    },
+    intervalMinutes: '间隔分钟数',
+    repeat: '重复提醒',
+    enable: '启用',
+    disable: '停用',
+    testSend: '测试发送',
+    testSent: '测试通知已发送（{kind}）',
+    upserted: '提醒已保存（{kind}）',
+  },
+  notifications: {
+    title: '通知中心',
+    empty: '暂无通知',
+    unread: '未读 {count}',
+    markAllRead: '全部已读',
+    markAllReadDone: '已标记 {count} 条为已读',
+    unreadOnly: '仅看未读',
+    kindLabel: '提醒类型',
+    loadMore: '加载更多',
   },
   exam: {
     title: '组卷考试',

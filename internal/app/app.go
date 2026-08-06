@@ -36,6 +36,11 @@ func New(cfg *config.Config, db *sql.DB) *App {
 	repo := repository.New(db)
 	a := &App{Cfg: cfg, DB: db, Svc: service.New(repo, cfg)}
 	a.Agent = agent.New(repo)
+	// 用户级领域事件总线共享：服务层（ReminderService 等）经 s.Svc.UserEvents 发布事件，
+	// SSE 订阅端（srv.RegisterUserSSE(a.Agent.UserEvents)）读取 a.Agent.UserEvents。
+	// 两个字段必须指向同一实例，否则调度器/测试发送发布的 reminder:triggered 等事件
+	// 无法到达 SSE 订阅者。这里以服务层实例为准，agent 内部新建的实例被替换丢弃。
+	a.Agent.UserEvents = a.Svc.UserEvents
 	// Agent LLM 工厂：读取 secrets 配置（未配置返回 ErrNotConfigured）。
 	a.Agent.LLMFactory = func() (provider.LLMProvider, error) {
 		c, ok := a.Svc.ProviderConfigOf("llm")
@@ -187,6 +192,12 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "TimerStart", a.Svc.Focus.TimerStart)
 	bind(srv, "TimerEnd", a.Svc.Focus.TimerEnd)
 	bind(srv, "TimerStats", a.Svc.Focus.TimerStats)
+
+	// 提醒与通知（API 文档 7.7 / 完整设计文档 4.14）
+	bind(srv, "ReminderUpsert", a.Svc.Reminder.ReminderUpsert)
+	bind(srv, "ReminderTestSend", a.Svc.Reminder.ReminderTestSend)
+	bind(srv, "NotificationList", a.Svc.Reminder.NotificationList)
+	bind(srv, "NotificationMarkRead", a.Svc.Reminder.NotificationMarkRead)
 
 	// 4.8 笔记与标注（API 文档 7.1）
 	bind(srv, "NoteCreate", a.Svc.Note.NoteCreate)

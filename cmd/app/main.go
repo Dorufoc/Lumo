@@ -54,6 +54,12 @@ func run() error {
 	srv := apphttp.NewServer()
 	a.RegisterHandlers(srv)
 
+	// 提醒调度器：进程级 in-process goroutine，每 30s 扫描到期提醒。
+	// 使用独立于启动上下文（30s 超时）的长生命周期 context，进程退出即终止。
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+	go a.Svc.Reminder.RunScheduler(ctx2)
+
 	// 托管前端构建产物（存在时）；否则提示用 dev server。
 	if cfg.FrontendDist != "" {
 		if st, err := os.Stat(cfg.FrontendDist); err == nil && st.IsDir() {

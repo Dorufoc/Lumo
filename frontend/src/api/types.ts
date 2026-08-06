@@ -722,3 +722,74 @@ export interface TimerStatsReq {
   start_date?: string
   end_date?: string
 }
+
+// ---------- 4.14 提醒与通知（API 设计文档 7.7） ----------
+
+export type ReminderKind = 'review' | 'goal' | 'exam' | 'streak' | 'health'
+
+export interface Reminder {
+  id: string
+  workspace_id: string
+  user_id: string
+  kind: ReminderKind
+  rule_json: string
+  enabled: boolean
+  next_trigger_at: string
+  created_at: string
+  updated_at: string
+}
+
+export interface TestResult {
+  ok: boolean
+  kind: string
+}
+
+export interface Notification {
+  id: string
+  kind: string
+  title_key: string
+  body_args: Record<string, unknown>
+  ref_type: string | null
+  ref_id: string | null
+  read_at: string | null
+  created_at: string
+}
+
+export interface NotificationPage {
+  items: Notification[]
+  next_cursor: string
+  has_more: boolean
+}
+
+/** NotificationMarkRead 返回（API 文档 7.7 BatchResult 契约：{updated}）。 */
+export interface MarkReadResult {
+  updated: number
+}
+
+export interface ReminderUpsertReq {
+  workspace_id: string
+  user_id: string
+  kind: ReminderKind
+  rule_json: string
+  enabled: boolean
+}
+
+export interface ReminderTestSendReq {
+  workspace_id: string
+  user_id: string
+  kind: ReminderKind
+}
+
+export interface NotificationListReq {
+  workspace_id: string
+  user_id: string
+  unread_only?: boolean
+  cursor?: string
+  limit?: number
+}
+
+export interface NotificationMarkReadReq {
+  workspace_id: string
+  user_id: string
+  ids: string[]
+}
