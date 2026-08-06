@@ -672,3 +672,53 @@ export interface StreakGetReq {
   workspace_id: string
   user_id: string
 }
+
+// ---------- 4.13 专注计时（API 设计文档 7.6） ----------
+
+export interface TimerSession {
+  id: string
+  workspace_id: string
+  user_id: string
+  mode: 'pomodoro' | 'free'
+  planned_minutes: number
+  actual_seconds: number
+  task_id: string | null
+  status: 'completed' | 'interrupted' | 'abandoned'
+  interrupt_reason: string | null
+  started_at: string | null
+  ended_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TimerStats {
+  total_sessions: number
+  total_seconds: number
+  completed_sessions: number
+  interrupted_sessions: number
+  abandoned_sessions: number
+  interruption_rate: number
+}
+
+export interface TimerStartReq {
+  workspace_id: string
+  user_id: string
+  mode: 'pomodoro' | 'free'
+  planned_minutes: number
+  task_id?: string
+  idempotency_key: string
+}
+
+export interface TimerEndReq {
+  workspace_id: string
+  user_id: string
+  session_id: string
+  interrupt_reason?: string
+}
+
+export interface TimerStatsReq {
+  workspace_id: string
+  user_id: string
+  start_date?: string
+  end_date?: string
+}

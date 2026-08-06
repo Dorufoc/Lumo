@@ -183,6 +183,11 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "AchievementList", a.Svc.Checkin.AchievementList)
 	bind(srv, "StreakGet", a.Svc.Checkin.StreakGet)
 
+	// 专注计时（API 文档 7.6 / 完整设计文档 4.13）
+	bind(srv, "TimerStart", a.Svc.Focus.TimerStart)
+	bind(srv, "TimerEnd", a.Svc.Focus.TimerEnd)
+	bind(srv, "TimerStats", a.Svc.Focus.TimerStats)
+
 	// 4.8 笔记与标注（API 文档 7.1）
 	bind(srv, "NoteCreate", a.Svc.Note.NoteCreate)
 	bind(srv, "NoteUpdate", a.Svc.Note.NoteUpdate)
