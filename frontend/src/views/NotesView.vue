@@ -2,9 +2,11 @@
 import { computed, onMounted, ref } from 'vue'
 import { localizedMessageOf } from '@/api/client'
 import type { Note, NoteKind } from '@/api/types'
+import { useI18nStore } from '@/stores/i18n'
 import { useNoteStore } from '@/stores/note'
 
 const store = useNoteStore()
+const i18n = useI18nStore()
 
 const loading = ref(true)
 const error = ref('')
@@ -28,7 +30,7 @@ async function load() {
       keyword: searched.value || undefined,
       limit: 50,
     })
-    if (page.has_more) info.value = '仅显示前 50 条，请用关键词或筛选缩小范围'
+    if (page.has_more) info.value = i18n.t('note.truncatedHint')
   } catch (e) {
     error.value = localizedMessageOf(e)
   } finally {
@@ -106,7 +108,7 @@ async function saveNote() {
         tags,
       })
       await load()
-      info.value = `已保存：${updated.title}`
+      info.value = i18n.t('note.saved', { title: updated.title })
     } else {
       const created = await store.create({
         kind: formKind.value,
@@ -115,7 +117,7 @@ async function saveNote() {
         tags,
       })
       await load()
-      info.value = `已创建：${created.title}`
+      info.value = i18n.t('note.created', { title: created.title })
     }
     openCreate()
   } catch (e) {
@@ -140,7 +142,7 @@ async function doDelete() {
   try {
     await store.remove(confirmId.value, confirmIdVersion.value)
     confirmId.value = ''
-    info.value = '笔记已删除'
+    info.value = i18n.t('note.deleted')
   } catch (e) {
     error.value = localizedMessageOf(e)
     confirmId.value = ''
@@ -165,7 +167,7 @@ async function toFlashcard(n: Note) {
   error.value = ''
   try {
     const card = await store.toFlashcard(n.id)
-    info.value = `已生成闪卡：${card.front}`
+    info.value = i18n.t('note.flashcardCreated', { front: card.front })
   } catch (e) {
     error.value = localizedMessageOf(e)
   } finally {

@@ -262,6 +262,11 @@ export const enUS: Messages = {
     save: 'Save',
     confirmDeleteTitle: 'Delete this note?',
     confirmDeleteBody: '"{title}" will be soft-deleted; existing flashcards are not affected.',
+    truncatedHint: 'Showing first 50 only — narrow with keyword or filters',
+    saved: 'Saved: {title}',
+    created: 'Created: {title}',
+    deleted: 'Note deleted',
+    flashcardCreated: 'Flashcard created: {front}',
   },
   settings: {
     title: 'Settings & Data',

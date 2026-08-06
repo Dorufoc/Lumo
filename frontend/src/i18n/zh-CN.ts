@@ -258,6 +258,11 @@ const zhCN = {
     save: '保存',
     confirmDeleteTitle: '删除这篇笔记？',
     confirmDeleteBody: '「{title}」将被软删除，不影响已生成的闪卡。',
+    truncatedHint: '仅显示前 50 条，请用关键词或筛选缩小范围',
+    saved: '已保存：{title}',
+    created: '已创建：{title}',
+    deleted: '笔记已删除',
+    flashcardCreated: '已生成闪卡：{front}',
   },
   settings: {
     title: '设置与数据',
