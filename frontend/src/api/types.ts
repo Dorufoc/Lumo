@@ -1075,3 +1075,39 @@ export interface MilestoneEvaluateReq {
   user_id: string
   milestone_id: string
 }
+
+// ---------- 4.17 健康与专注辅助（API 设计文档 7.16） ----------
+
+export interface HealthSettings {
+  workspace_id: string
+  user_id: string
+  sedentary_enabled: boolean
+  eye_enabled: boolean
+  night_mode: 'auto' | 'light' | 'dark' | 'custom'
+  blue_light_filter: boolean
+  stats_enabled: boolean
+  updated_at: string
+}
+
+export interface HealthSettingsUpdateReq {
+  workspace_id: string
+  user_id: string
+  sedentary_enabled: boolean
+  eye_enabled: boolean
+  night_mode: 'auto' | 'light' | 'dark' | 'custom'
+  blue_light_filter: boolean
+  stats_enabled: boolean
+}
+
+export interface HealthStatsGetReq {
+  workspace_id: string
+  user_id: string
+  start_date?: string
+  end_date?: string
+}
+
+export interface HealthStats {
+  stats_enabled: boolean
+  sedentary_count: number
+  rest_completion_rate: number
+}

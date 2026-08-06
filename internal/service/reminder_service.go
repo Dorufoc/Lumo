@@ -163,6 +163,7 @@ func (r *ReminderService) ReminderUpsert(ctx context.Context, req ReminderUpsert
 
 // ReminderTestSend 确定性测试钩子：立即发布 reminder:triggered 事件
 // （持久化通知 + 广播），不依赖真实时钟，供设置页验证通知通道（设计 4.14 测试发送）。
+// kind=health 时先运行共享久坐评估（Todo 18 决策：QA 回填入口），再走既有发布逻辑。
 func (r *ReminderService) ReminderTestSend(ctx context.Context, req ReminderTestSendReq) (*TestResult, error) {
 	if err := r.s.assertWorkspace(ctx, req.WorkspaceID); err != nil {
 		return nil, err
@@ -172,6 +173,12 @@ func (r *ReminderService) ReminderTestSend(ctx context.Context, req ReminderTest
 	}
 	if !domain.ValidReminderKind(req.Kind) {
 		return nil, domain.InvalidArg("kind 须为 review|goal|exam|streak|health")
+	}
+	if req.Kind == domain.ReminderKindHealth {
+		// 共享久坐评估：重算连续窗口并可能拉前 next_trigger_at，失败不阻断测试发送
+		if _, err := r.s.Health.EvaluateSedentary(ctx, req.WorkspaceID, req.UserID); err != nil {
+			return nil, err
+		}
 	}
 	if err := r.s.UserEvents.Publish(req.UserID, agent.Event{
 		Name:    agent.EventReminderTriggered,

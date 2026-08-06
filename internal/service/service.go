@@ -40,6 +40,7 @@ type Services struct {
 	Checkin   *CheckinService
 	Focus     *FocusService
 	Reminder  *ReminderService
+	Health    *HealthService
 	Report    *ReportService
 	Favorites *FavoritesService
 	Calendar  *CalendarService
@@ -93,6 +94,7 @@ func New(repo *repository.Repo, cfg *config.Config) *Services {
 	s.Checkin = &CheckinService{s: s, Now: time.Now}
 	s.Focus = &FocusService{s: s, Now: time.Now}
 	s.Reminder = &ReminderService{s: s, Now: time.Now}
+	s.Health = &HealthService{s: s, Now: time.Now}
 	s.Report = &ReportService{s: s, Now: time.Now}
 	s.Favorites = &FavoritesService{s: s}
 	s.Calendar = &CalendarService{s: s}

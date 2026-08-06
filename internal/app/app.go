@@ -205,6 +205,10 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "NotificationList", a.Svc.Reminder.NotificationList)
 	bind(srv, "NotificationMarkRead", a.Svc.Reminder.NotificationMarkRead)
 
+	// 健康与专注辅助（API 文档 7.16 / 完整设计文档 4.17）
+	bind(srv, "HealthSettingsUpdate", a.Svc.Health.HealthSettingsUpdate)
+	bind(srv, "HealthStatsGet", a.Svc.Health.HealthStatsGet)
+
 	// 学习报告与洞察（API 文档 7.5 / 完整设计文档 4.12）
 	bind(srv, "ReportGenerate", a.Svc.Report.ReportGenerate)
 	bind(srv, "ReportList", a.Svc.Report.ReportList)

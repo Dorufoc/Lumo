@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"math"
 	"time"
 
@@ -174,6 +175,12 @@ func (f *FocusService) TimerEnd(ctx context.Context, req TimerEndReq) (*domain.T
 	f.s.audit(ctx, req.WorkspaceID, "focus.end", "timer_session", session.ID,
 		map[string]any{"mode": session.Mode, "planned_minutes": session.PlannedMinutes,
 			"actual_seconds": elapsed, "status": status, "interrupt_reason": req.InterruptReason})
+	// 久坐评估钩子（4.17 H1 / Todo 18 决策）：结束后共享评估函数检查连续久坐窗口，
+	// 达到阈值则拉前 health 提醒 next_trigger_at 尽快触发。评估失败不阻断计时结束
+	// （健康提醒是辅助能力，不干扰主流程）。
+	if _, err := f.s.Health.EvaluateSedentary(ctx, req.WorkspaceID, req.UserID); err != nil {
+		slog.Error("久坐评估失败", "error", err)
+	}
 	return f.s.Repo.GetTimerSession(ctx, req.WorkspaceID, session.ID)
 }
 
