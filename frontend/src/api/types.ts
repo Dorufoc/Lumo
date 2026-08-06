@@ -424,3 +424,100 @@ export interface ExportResult {
   format: string
   size_bytes: number
 }
+
+// ---------- 4.8 笔记与标注（API 设计文档 7.1） ----------
+
+export type NoteKind = 'question' | 'document' | 'agent' | 'free'
+
+export interface Note {
+  id: string
+  workspace_id: string
+  user_id: string
+  kind: NoteKind
+  title: string
+  body_md: string
+  source_ref?: string
+  knowledge_ids: string[]
+  tags: string[]
+  created_at: string
+  updated_at: string
+  version: number
+}
+
+export interface NotePage {
+  items: Note[]
+  next_cursor: string
+  has_more: boolean
+}
+
+export interface Annotation {
+  id: string
+  note_id: string
+  document_id?: string
+  anchor_hash: string
+  offset_start: number
+  offset_end: number
+  highlight_color: string
+  created_at: string
+}
+
+export interface NoteCreateReq {
+  workspace_id: string
+  user_id: string
+  kind?: NoteKind
+  title: string
+  body_md?: string
+  source_ref?: string
+  knowledge_ids?: string[]
+  tags?: string[]
+}
+
+export interface NoteUpdateReq {
+  workspace_id: string
+  note_id: string
+  version: number
+  kind?: NoteKind
+  title: string
+  body_md?: string
+  source_ref?: string
+  knowledge_ids?: string[]
+  tags?: string[]
+}
+
+export interface NoteListReq {
+  workspace_id: string
+  kind?: NoteKind
+  knowledge_id?: string
+  tag?: string
+  keyword?: string
+  cursor?: string
+  limit?: number
+}
+
+export interface NoteDeleteReq {
+  workspace_id: string
+  note_id: string
+  version: number
+}
+
+export interface NoteToFlashcardReq {
+  workspace_id: string
+  user_id: string
+  note_id: string
+  idempotency_key: string
+}
+
+export interface AnnotationCreateReq {
+  workspace_id: string
+  note_id: string
+  document_id?: string
+  anchor_hash: string
+  offset_start: number
+  offset_end: number
+  highlight_color?: string
+}
+
+export interface DeleteResult {
+  deleted: boolean
+  deleted_at: string
+}

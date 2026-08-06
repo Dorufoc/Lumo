@@ -168,6 +168,14 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "FlashcardImportCsv", a.Svc.Flashcard.FlashcardImportCsv)
 	bind(srv, "FlashcardExportAnki", a.Svc.Flashcard.FlashcardExportAnki)
 
+	// 4.8 笔记与标注（API 文档 7.1）
+	bind(srv, "NoteCreate", a.Svc.Note.NoteCreate)
+	bind(srv, "NoteUpdate", a.Svc.Note.NoteUpdate)
+	bind(srv, "NoteList", a.Svc.Note.NoteList)
+	bind(srv, "NoteDelete", a.Svc.Note.NoteDelete)
+	bind(srv, "NoteToFlashcard", a.Svc.Note.NoteToFlashcard)
+	bind(srv, "AnnotationCreate", a.Svc.Note.AnnotationCreate)
+
 	// 统计（新增 API：DashboardGet）
 	bind(srv, "DashboardGet", a.Svc.Dashboard.DashboardGet)
 

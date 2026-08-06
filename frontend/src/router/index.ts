@@ -9,6 +9,7 @@ const router = createRouter({
     { path: '/result/:sessionId', name: 'result', component: () => import('@/views/PracticeResultView.vue'), meta: { title: '练习结果' } },
     { path: '/review', name: 'review', component: () => import('@/views/ReviewView.vue'), meta: { title: '错题复习' } },
     { path: '/flashcards', name: 'flashcards', component: () => import('@/views/FlashcardsView.vue'), meta: { title: '闪卡' } },
+    { path: '/notes', name: 'notes', component: () => import('@/views/NotesView.vue'), meta: { title: '笔记' } },
     { path: '/plan', name: 'plan', component: () => import('@/views/PlanView.vue'), meta: { title: '计划' } },
     { path: '/library', name: 'library', component: () => import('@/views/LibraryView.vue'), meta: { title: '题库与资料' } },
     { path: '/tutor', name: 'tutor', component: () => import('@/views/TutorView.vue'), meta: { title: 'AI Tutor' } },
