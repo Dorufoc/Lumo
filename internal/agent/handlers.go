@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,6 +45,10 @@ func (a *Service) handlerFor(agentType string, llm provider.LLMProvider) Handler
 		return &TutorHandler{}
 	case "librarian":
 		return &LibrarianHandler{}
+	case "summarizer":
+		return &SummarizerHandler{}
+	case "quizgen":
+		return &QuizGenHandler{}
 	default:
 		return &RouterHandler{}
 	}
@@ -87,26 +90,8 @@ func chatJSON(ctx context.Context, in *RunInput, system, prompt string, out any)
 	if in.LLMErr != nil || in.LLM == nil {
 		return provider.ErrNotConfigured
 	}
-	res, err := in.LLM.Chat(ctx, provider.ChatRequest{
-		Model: "", Messages: []provider.Message{
-			{Role: "system", Content: system},
-			{Role: "user", Content: prompt},
-		}, MaxTokens: 2048, Temperature: 0.2, JSONMode: true,
-	}, nil)
-	if err != nil {
-		return err
-	}
-	content := res.Content
-	// 剥离可能的 ```json 代码块
-	content = strings.TrimSpace(content)
-	content = strings.TrimPrefix(content, "```json")
-	content = strings.TrimPrefix(content, "```")
-	content = strings.TrimSuffix(content, "```")
-	content = strings.TrimSpace(content)
-	if err := json.Unmarshal([]byte(content), out); err != nil {
-		return domain.WrapError(domain.CodeOutputInvalid, "模型输出不是合法 JSON: %v", err)
-	}
-	return nil
+	_, err := ChatJSON(ctx, in.LLM, system, prompt, out)
+	return err
 }
 
 // fallbackReply 未配置 Provider 时的确定性回复模板。

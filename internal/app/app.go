@@ -240,6 +240,8 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "AgentSessionGet", a.Agent.AgentSessionGet)
 	bind(srv, "AgentMemoryList", a.Agent.AgentMemoryList)
 	bind(srv, "AgentMemoryDelete", a.Agent.AgentMemoryDelete)
+	bind(srv, "AgentSummarize", a.Svc.AgentTasks.AgentSummarize)
+	bind(srv, "AgentQuizGen", a.Svc.AgentTasks.AgentQuizGen)
 
 	// Provider 配置（设置页）
 	bind(srv, "ProviderConfigure", a.Svc.ProviderConfigure)

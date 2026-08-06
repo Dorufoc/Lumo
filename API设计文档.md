@@ -175,6 +175,8 @@
 | `AgentSessionGet` | `workspace_id`, `session_id` | `AgentSession` |
 | `AgentMemoryList` | `workspace_id`, `user_id` | `AgentMemory[]` |
 | `AgentMemoryDelete` | `workspace_id`, `memory_id`, `version` | `DeleteResult` |
+| `AgentSummarize` | `workspace_id`, `user_id`, `document_id`, `preferences`, `idempotency_key` | `AgentSummarizeResult` |
+| `AgentQuizGen` | `workspace_id`, `user_id`, `document_ids`, `types`, `count`, `knowledge_ids`, `idempotency_key` | `AgentQuizGenResult` |
 | `DocumentImport` | `workspace_id`, `file_path`, `idempotency_key` | `Document` |
 | `DocumentList` | `workspace_id`, `status`, `cursor`, `limit` | `DocumentPage` |
 | `DocumentRetry` | `workspace_id`, `document_id`, `idempotency_key` | `Document` |
