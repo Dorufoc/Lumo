@@ -234,6 +234,10 @@ export const enUS: Messages = {
     generateTitle: 'Generate from question bank',
     generatePlaceholder: 'Question version ID (source_ref)',
     generate: 'Generate',
+    added: 'Flashcard added',
+    importDone: 'Import complete: {count} cards',
+    exportDone: 'Generated {name}, starting download…',
+    generated: 'Generated {count} flashcards',
   },
   note: {
     title: 'Notes',

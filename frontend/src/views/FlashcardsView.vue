@@ -2,9 +2,11 @@
 import { computed, onMounted, ref } from 'vue'
 import { localizedMessageOf, upload } from '@/api/client'
 import type { FlashcardImportBatch } from '@/api/types'
+import { useI18nStore } from '@/stores/i18n'
 import { useFlashcardStore } from '@/stores/flashcard'
 
 const store = useFlashcardStore()
+const i18n = useI18nStore()
 
 const loading = ref(true)
 const error = ref('')
@@ -65,7 +67,7 @@ async function createCard() {
     await store.create({ front: front.value.trim(), back: back.value.trim() })
     front.value = ''
     back.value = ''
-    info.value = '已添加闪卡'
+    info.value = i18n.t('flashcard.added')
     await store.loadDue(100)
   } catch (e) {
     error.value = localizedMessageOf(e)
@@ -93,7 +95,7 @@ async function doImportCsv() {
   try {
     const up = await upload<{ path: string; file_name: string }>('LibraryUpload', csvFile.value)
     importBatch.value = await store.importCsv(up.path)
-    info.value = `导入完成：${importBatch.value.valid_count} 张`
+    info.value = i18n.t('flashcard.importDone', { count: importBatch.value.valid_count })
     await store.loadDue(100)
   } catch (e) {
     error.value = localizedMessageOf(e)
@@ -111,7 +113,7 @@ async function doExportAnki() {
   info.value = ''
   try {
     const res = await store.exportAnki()
-    info.value = `已生成 ${res.file_name}，开始下载…`
+    info.value = i18n.t('flashcard.exportDone', { name: res.file_name })
     window.location.href = `/api/v1/files?path=${encodeURIComponent(res.path)}`
   } catch (e) {
     error.value = localizedMessageOf(e)
@@ -127,7 +129,7 @@ async function doGenerate() {
   if (!sourceRef.value.trim()) return
   try {
     const cards2 = await store.generate(sourceRef.value.trim())
-    info.value = `已生成 ${cards2.length} 张闪卡`
+    info.value = i18n.t('flashcard.generated', { count: cards2.length })
     sourceRef.value = ''
     await store.loadDue(100)
   } catch (e) {

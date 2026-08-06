@@ -230,6 +230,10 @@ const zhCN = {
     generateTitle: '从题库生成',
     generatePlaceholder: '题目版本 ID（source_ref）',
     generate: '生成',
+    added: '已添加闪卡',
+    importDone: '导入完成：{count} 张',
+    exportDone: '已生成 {name}，开始下载…',
+    generated: '已生成 {count} 张闪卡',
   },
   note: {
     title: '笔记',
