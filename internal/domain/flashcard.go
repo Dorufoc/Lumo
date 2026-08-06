@@ -43,27 +43,25 @@ const (
 	FlashcardMasteredStreak   = 3
 )
 
-// Flashcard 是闪卡实体（4.9 数据模型）。
+// Flashcard 是闪卡实体（4.9 数据模型，字段与 0005_student.sql flashcards 表一致）。
 type Flashcard struct {
-	ID             string
-	WorkspaceID    string
-	UserID         string
-	Source         string
-	SourceRef      string
-	Front          string
-	Back           string
-	CardType       string
-	Tags           []string
-	State          string
-	Repetition     int
-	IntervalDays   int
-	EaseFactor     float64
-	DueAt          string
-	LastReviewedAt string
-	CreatedAt      string
-	UpdatedAt      string
-	DeletedAt      *string
-	Version        int
+	ID           string
+	WorkspaceID  string
+	UserID       string
+	Source       string
+	SourceRef    string
+	Front        string
+	Back         string
+	CardType     string
+	State        string
+	Repetition   int
+	IntervalDays int
+	EaseFactor   float64
+	DueAt        string
+	CreatedAt    string
+	UpdatedAt    string
+	DeletedAt    *string
+	Version      int
 }
 
 // ValidateFlashcardRating 校验评级枚举。

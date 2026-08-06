@@ -337,6 +337,11 @@ const zhCN = {
     storageFull: '存储空间已满',
     migrationBlocked: '迁移被阻止',
   },
+  notification: {
+    flashcard_due: {
+      title: '闪卡到期',
+    },
+  },
 }
 
 // 把 zhCN 的字面量值类型放宽为 string，同时完整保留 key 嵌套结构 →

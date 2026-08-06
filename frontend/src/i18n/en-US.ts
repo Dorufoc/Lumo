@@ -343,4 +343,9 @@ export const enUS: Messages = {
     storageFull: 'Storage full',
     migrationBlocked: 'Migration blocked',
   },
+  notification: {
+    flashcard_due: {
+      title: 'Flashcards due',
+    },
+  },
 }
