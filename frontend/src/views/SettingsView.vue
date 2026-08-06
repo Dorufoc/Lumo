@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { call } from '@/api/client'
+import { call, localizedMessageOf } from '@/api/client'
 import type { Settings } from '@/api/types'
+import { useI18nStore } from '@/stores/i18n'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
+const i18n = useI18nStore()
 
 const tab = ref<'model' | 'data'>('model')
 const error = ref('')
@@ -30,7 +32,7 @@ async function loadSettings() {
       if (ps.embedding.model) embedding.value.model = ps.embedding.model
     }
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   }
 }
 
@@ -49,9 +51,9 @@ async function saveProvider(provider: 'llm' | 'embedding', cfg: typeof llm.value
     })
     session.settings = st
     cfg.api_key = ''
-    info.value = `${provider === 'llm' ? '对话模型' : '向量模型'}配置已保存`
+    info.value = provider === 'llm' ? i18n.t('settings.llmSaved') : i18n.t('settings.embeddingSaved')
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   }
 }
 
@@ -64,10 +66,10 @@ async function testProvider(provider: 'llm' | 'embedding') {
       provider,
     })
     testResult.value[provider] = r.ok
-      ? `✅ 连接正常（${r.latency_ms}ms）`
-      : `❌ ${r.error ?? '连接失败'}`
+      ? i18n.t('settings.testOk', { ms: r.latency_ms })
+      : `❌ ${r.error ?? i18n.t('settings.testFailed')}`
   } catch (e) {
-    testResult.value[provider] = `❌ ${(e as Error).message}`
+    testResult.value[provider] = `❌ ${localizedMessageOf(e)}`
   } finally {
     testing.value = null
   }
@@ -96,15 +98,15 @@ async function doSync() {
   try {
     await call('SyncDeviceRegister', {
       device_id: 'local-web',
-      device_name: '本机浏览器',
+      device_name: i18n.t('settings.deviceName'),
       platform: 'web',
       app_version: '2.0.0',
     })
     await call('SyncPush', { workspace_id: session.workspaceId })
     await loadSyncStatus()
-    info.value = syncStatus.value?.pending_count === 0 ? '✅ 同步完成，本地队列已清空' : '同步完成'
+    info.value = syncStatus.value?.pending_count === 0 ? i18n.t('settings.syncDone') : i18n.t('settings.syncDoneShort')
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   } finally {
     syncing.value = false
   }
@@ -120,7 +122,7 @@ const exporting = ref(false)
 
 async function createBackup() {
   if (backupPassword.value.length < 4) {
-    error.value = '备份密码至少 4 位'
+    error.value = i18n.t('settings.backupPasswordShort')
     return
   }
   backingUp.value = true
@@ -131,9 +133,9 @@ async function createBackup() {
       password: backupPassword.value,
       idempotency_key: `bak-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
     })
-    backupResult.value = `✅ 备份已创建：${r.file_name}（${(r.size_bytes / 1024).toFixed(1)} KB）`
+    backupResult.value = i18n.t('settings.backupCreated', { name: r.file_name, size: (r.size_bytes / 1024).toFixed(1) })
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   } finally {
     backingUp.value = false
   }
@@ -141,7 +143,7 @@ async function createBackup() {
 
 async function restoreBackup() {
   if (!restorePath.value || restorePassword.value.length < 4) {
-    error.value = '请填写备份文件名与密码'
+    error.value = i18n.t('settings.restoreRequired')
     return
   }
   restoring.value = true
@@ -153,10 +155,10 @@ async function restoreBackup() {
       password: restorePassword.value,
       target_workspace_id: session.workspaceId,
     })
-    info.value = r.restored ? '✅ 恢复成功，数据已替换为备份内容' : '恢复失败'
+    info.value = r.restored ? i18n.t('settings.restoreOk') : i18n.t('settings.restoreFailed')
     await loadSettings()
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   } finally {
     restoring.value = false
   }
@@ -171,10 +173,10 @@ async function doExport() {
       scope: exportScope.value,
       format: exportFormat.value,
     })
-    info.value = `导出完成：${r.file_name}，点击下载`
+    info.value = i18n.t('settings.exportDone', { name: r.file_name })
     window.location.href = `/api/v1/files?path=${encodeURIComponent(r.path)}`
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   } finally {
     exporting.value = false
   }
@@ -190,165 +192,165 @@ onMounted(() => {
   <div>
     <div class="page-header">
       <div>
-        <h1>设置与数据</h1>
-        <div class="subtitle">模型 Provider 配置 · 备份恢复 · 数据导出</div>
+        <h1>{{ $t('settings.title') }}</h1>
+        <div class="subtitle">{{ $t('settings.subtitle') }}</div>
       </div>
     </div>
 
     <div v-if="error" class="error-banner">
       <span>{{ error }}</span>
-      <button class="btn btn-sm" @click="error = ''">关闭</button>
+      <button class="btn btn-sm" @click="error = ''">{{ $t('common.close') }}</button>
     </div>
     <div v-if="info" class="offline-banner">{{ info }}</div>
 
     <div class="tabs">
-      <div class="tab" :class="{ active: tab === 'model' }" @click="tab = 'model'">模型配置</div>
-      <div class="tab" :class="{ active: tab === 'data' }" @click="tab = 'data'">数据管理</div>
+      <div class="tab" :class="{ active: tab === 'model' }" @click="tab = 'model'">{{ $t('settings.tabModel') }}</div>
+      <div class="tab" :class="{ active: tab === 'data' }" @click="tab = 'data'">{{ $t('settings.tabData') }}</div>
     </div>
 
     <!-- 模型配置 -->
     <template v-if="tab === 'model'">
       <div class="card">
         <div class="flex-between mb-3">
-          <div class="card-title" style="margin: 0">对话模型（Tutor / Grader / 诊断）</div>
+          <div class="card-title" style="margin: 0">{{ $t('settings.llmTitle') }}</div>
           <span class="badge" :class="llm.enabled ? 'badge-success' : 'badge-offline'">
-            {{ llm.enabled ? '已配置' : '未配置' }}
+            {{ llm.enabled ? $t('settings.configured') : $t('settings.notConfigured') }}
           </span>
         </div>
         <div class="form-row">
           <div class="field">
-            <label>类型</label>
+            <label>{{ $t('settings.type') }}</label>
             <select v-model="llm.kind" class="select">
-              <option value="openai">OpenAI 兼容</option>
-              <option value="mock">本地模拟（测试）</option>
+              <option value="openai">{{ $t('settings.openaiCompat') }}</option>
+              <option value="mock">{{ $t('settings.localMock') }}</option>
             </select>
           </div>
           <div class="field">
             <label>Base URL</label>
-            <input v-model="llm.base_url" class="input" placeholder="https://api.openai.com/v1（默认）" />
+            <input v-model="llm.base_url" class="input" :placeholder="$t('settings.baseUrlPlaceholder')" />
           </div>
         </div>
         <div class="form-row">
           <div class="field">
-            <label>模型名</label>
+            <label>{{ $t('settings.modelName') }}</label>
             <input v-model="llm.model" class="input" placeholder="gpt-4o-mini" />
           </div>
           <div class="field">
-            <label>API Key（不回读，留空表示不修改）</label>
+            <label>{{ $t('settings.apiKeyLabel') }}</label>
             <input v-model="llm.api_key" type="password" class="input" placeholder="sk-…" />
           </div>
         </div>
         <div class="flex gap-2" style="justify-content: flex-end">
           <button class="btn" :disabled="testing === 'llm'" @click="testProvider('llm')">
-            {{ testing === 'llm' ? '测试中…' : '测试连接' }}
+            {{ testing === 'llm' ? $t('settings.testing') : $t('settings.test') }}
           </button>
-          <button class="btn btn-primary" @click="saveProvider('llm', llm)">保存</button>
+          <button class="btn btn-primary" @click="saveProvider('llm', llm)">{{ $t('common.save') }}</button>
         </div>
         <div v-if="testResult.llm" class="hint mt-2">{{ testResult.llm }}</div>
       </div>
 
       <div class="card">
         <div class="flex-between mb-3">
-          <div class="card-title" style="margin: 0">向量模型（资料检索）</div>
+          <div class="card-title" style="margin: 0">{{ $t('settings.embeddingTitle') }}</div>
           <span class="badge" :class="embedding.enabled ? 'badge-success' : 'badge-offline'">
-            {{ embedding.enabled ? '已配置' : '未配置' }}
+            {{ embedding.enabled ? $t('settings.configured') : $t('settings.notConfigured') }}
           </span>
         </div>
         <div class="form-row">
           <div class="field">
-            <label>类型</label>
+            <label>{{ $t('settings.type') }}</label>
             <select v-model="embedding.kind" class="select">
-              <option value="openai">OpenAI 兼容</option>
-              <option value="mock">本地模拟（测试）</option>
+              <option value="openai">{{ $t('settings.openaiCompat') }}</option>
+              <option value="mock">{{ $t('settings.localMock') }}</option>
             </select>
           </div>
           <div class="field">
             <label>Base URL</label>
-            <input v-model="embedding.base_url" class="input" placeholder="https://api.openai.com/v1（默认）" />
+            <input v-model="embedding.base_url" class="input" :placeholder="$t('settings.baseUrlPlaceholder')" />
           </div>
         </div>
         <div class="form-row">
           <div class="field">
-            <label>模型名</label>
+            <label>{{ $t('settings.modelName') }}</label>
             <input v-model="embedding.model" class="input" placeholder="text-embedding-3-small" />
           </div>
           <div class="field">
-            <label>API Key（不回读，留空表示不修改）</label>
+            <label>{{ $t('settings.apiKeyLabel') }}</label>
             <input v-model="embedding.api_key" type="password" class="input" placeholder="sk-…" />
           </div>
         </div>
         <div class="flex gap-2" style="justify-content: flex-end">
           <button class="btn" :disabled="testing === 'embedding'" @click="testProvider('embedding')">
-            {{ testing === 'embedding' ? '测试中…' : '测试连接' }}
+            {{ testing === 'embedding' ? $t('settings.testing') : $t('settings.test') }}
           </button>
-          <button class="btn btn-primary" @click="saveProvider('embedding', embedding)">保存</button>
+          <button class="btn btn-primary" @click="saveProvider('embedding', embedding)">{{ $t('common.save') }}</button>
         </div>
         <div v-if="testResult.embedding" class="hint mt-2">{{ testResult.embedding }}</div>
-        <div class="hint mt-2">密钥仅保存在本机 secrets 文件中，任何接口都不回读密钥。</div>
+        <div class="hint mt-2">{{ $t('settings.secretsHint') }}</div>
       </div>
     </template>
 
     <!-- 数据管理 -->
     <template v-if="tab === 'data'">
       <div class="card">
-        <div class="card-title">云同步（本地模拟）</div>
+        <div class="card-title">{{ $t('settings.syncTitle') }}</div>
         <p class="text-secondary mb-3">
-          变更以幂等操作日志推送到同步服务端；当前为本地模拟实现（数据存于 sim-server 目录），后续可无缝切换真实云服务。
+          {{ $t('settings.syncHint') }}
         </p>
         <div class="flex gap-3" style="align-items: center">
           <span class="badge" :class="(syncStatus?.pending_count ?? 0) > 0 ? 'badge-warning' : 'badge-success'">
-            待推送 {{ syncStatus?.pending_count ?? '–' }}
+            {{ $t('settings.pending', { count: syncStatus?.pending_count ?? '–' }) }}
           </span>
           <button class="btn btn-primary" :disabled="syncing" @click="doSync">
-            {{ syncing ? '同步中…' : '立即同步' }}
+            {{ syncing ? $t('settings.syncing') : $t('settings.syncNow') }}
           </button>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-title">创建加密备份</div>
-        <p class="text-secondary mb-3">备份为数据库一致性快照（AES-256-GCM 加密），请牢记密码。</p>
+        <div class="card-title">{{ $t('settings.backupTitle') }}</div>
+        <p class="text-secondary mb-3">{{ $t('settings.backupHint') }}</p>
         <div class="flex gap-3">
-          <input v-model="backupPassword" type="password" class="input" style="max-width: 260px" placeholder="备份密码" />
+          <input v-model="backupPassword" type="password" class="input" style="max-width: 260px" :placeholder="$t('settings.backupPassword')" />
           <button class="btn btn-primary" :disabled="backingUp" @click="createBackup">
-            {{ backingUp ? '备份中…' : '创建备份' }}
+            {{ backingUp ? $t('settings.backingUp') : $t('settings.createBackup') }}
           </button>
         </div>
         <div v-if="backupResult" class="hint mt-2">{{ backupResult }}</div>
       </div>
 
       <div class="card">
-        <div class="card-title">恢复备份</div>
-        <p class="text-secondary mb-3">恢复将整体替换当前数据（恢复前会自动保留一份 pre-restore 备份）。</p>
+        <div class="card-title">{{ $t('settings.restoreTitle') }}</div>
+        <p class="text-secondary mb-3">{{ $t('settings.restoreHint') }}</p>
         <div class="form-row">
           <div class="field">
-            <label>备份文件名</label>
+            <label>{{ $t('settings.backupFileLabel') }}</label>
             <input v-model="restorePath" class="input" placeholder="backup-….sqz" />
           </div>
           <div class="field">
-            <label>密码</label>
-            <input v-model="restorePassword" type="password" class="input" placeholder="备份密码" />
+            <label>{{ $t('settings.password') }}</label>
+            <input v-model="restorePassword" type="password" class="input" :placeholder="$t('settings.backupPassword')" />
           </div>
         </div>
         <button class="btn btn-danger" :disabled="restoring" @click="restoreBackup">
-          {{ restoring ? '恢复中…' : '恢复备份' }}
+          {{ restoring ? $t('settings.restoring') : $t('settings.restoreButton') }}
         </button>
       </div>
 
       <div class="card">
-        <div class="card-title">数据导出</div>
+        <div class="card-title">{{ $t('settings.exportTitle') }}</div>
         <div class="form-row">
           <div class="field">
-            <label>范围</label>
+            <label>{{ $t('settings.scope') }}</label>
             <select v-model="exportScope" class="select">
-              <option value="all">全部</option>
-              <option value="questions">题库</option>
-              <option value="learning_records">学习记录</option>
-              <option value="documents">资料</option>
+              <option value="all">{{ $t('settings.scopeAll') }}</option>
+              <option value="questions">{{ $t('settings.scopeQuestions') }}</option>
+              <option value="learning_records">{{ $t('settings.scopeRecords') }}</option>
+              <option value="documents">{{ $t('settings.scopeDocs') }}</option>
             </select>
           </div>
           <div class="field">
-            <label>格式</label>
+            <label>{{ $t('settings.format') }}</label>
             <select v-model="exportFormat" class="select">
               <option value="json">JSON</option>
               <option value="zip">ZIP</option>
@@ -356,7 +358,7 @@ onMounted(() => {
           </div>
         </div>
         <button class="btn btn-primary" :disabled="exporting" @click="doExport">
-          {{ exporting ? '导出中…' : '导出并下载' }}
+          {{ exporting ? $t('settings.exporting') : $t('settings.exportDownload') }}
         </button>
       </div>
     </template>

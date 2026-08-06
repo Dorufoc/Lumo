@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { call, openEventStream, upload, type Citation } from '@/api/client'
+import { call, localizeApiError, localizedMessageOf, openEventStream, upload, type Citation } from '@/api/client'
 import type { Document, DocumentPage, ImportBatch, ImportPreview, KnowledgeNode, Question, QuestionPage } from '@/api/types'
+import { useI18nStore } from '@/stores/i18n'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
+const i18n = useI18nStore()
 
 const tab = ref<'questions' | 'import' | 'knowledge' | 'documents'>('questions')
 const loading = ref(true)
@@ -22,7 +24,7 @@ async function loadQuestions() {
     })
     questions.value = page?.items ?? []
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   } finally {
     loading.value = false
   }
@@ -38,7 +40,7 @@ async function transition(q: Question, action: string) {
     })
     await loadQuestions()
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   }
 }
 
@@ -69,7 +71,7 @@ async function doPreflight() {
       idempotency_key: `imp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
     })
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   } finally {
     importing.value = false
   }
@@ -86,7 +88,7 @@ async function doCommit() {
       idempotency_key: `impc-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
     })
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   } finally {
     importing.value = false
   }
@@ -108,7 +110,7 @@ async function createKnow() {
     newKnow.value = ''
     await loadTree()
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   }
 }
 
@@ -143,10 +145,10 @@ async function doDocImport() {
       idempotency_key: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
     })
     docFile.value = null
-    info.value = doc.status === 'indexed' ? `✅ 已导入并索引：${doc.file_name}` : `文档状态：${doc.status}`
+    info.value = doc.status === 'indexed' ? i18n.t('library.docImported', { name: doc.file_name }) : i18n.t('library.docStatus', { status: doc.status })
     await loadDocs()
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   } finally {
     docImporting.value = false
   }
@@ -161,7 +163,7 @@ async function deleteDoc(d: Document) {
     })
     await loadDocs()
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   }
 }
 
@@ -190,12 +192,12 @@ async function ragAsk() {
       },
       onError: (err) => {
         ragStreaming.value = false
-        error.value = err.message
+        error.value = localizeApiError(err)
       },
     })
   } catch (e) {
     ragStreaming.value = false
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   }
 }
 
@@ -207,8 +209,14 @@ onMounted(() => {
   void loadDocs()
 })
 
-function typeLabel(t: string) {
-  return { single_choice: '单选', multiple_choice: '多选', fill_blank: '填空', short_answer: '简答', code: '代码' }[t] ?? t
+function typeKey(t: string) {
+  return {
+    single_choice: 'question.typeSingle',
+    multiple_choice: 'question.typeMultiple',
+    fill_blank: 'question.typeFill',
+    short_answer: 'question.typeShort',
+    code: 'question.typeCode',
+  }[t] ?? t
 }
 </script>
 
@@ -216,18 +224,18 @@ function typeLabel(t: string) {
   <div>
     <div class="page-header">
       <div>
-        <h1>题库与资料</h1>
-        <div class="subtitle">导入 Markdown / JSON / 纯文本题库，管理题目与知识点</div>
+        <h1>{{ $t('library.title') }}</h1>
+        <div class="subtitle">{{ $t('library.subtitle') }}</div>
       </div>
     </div>
 
     <div v-if="error" class="error-banner">{{ error }}</div>
 
     <div class="tabs">
-      <div class="tab" :class="{ active: tab === 'questions' }" @click="tab = 'questions'">题目（{{ questions.length }}）</div>
-      <div class="tab" :class="{ active: tab === 'import' }" @click="tab = 'import'">导入题库</div>
-      <div class="tab" :class="{ active: tab === 'knowledge' }" @click="tab = 'knowledge'">知识点</div>
-      <div class="tab" :class="{ active: tab === 'documents' }" @click="tab = 'documents'">资料问答</div>
+      <div class="tab" :class="{ active: tab === 'questions' }" @click="tab = 'questions'">{{ $t('library.tabQuestions', { count: questions.length }) }}</div>
+      <div class="tab" :class="{ active: tab === 'import' }" @click="tab = 'import'">{{ $t('library.tabImport') }}</div>
+      <div class="tab" :class="{ active: tab === 'knowledge' }" @click="tab = 'knowledge'">{{ $t('library.tabKnowledge') }}</div>
+      <div class="tab" :class="{ active: tab === 'documents' }" @click="tab = 'documents'">{{ $t('library.tabDocuments') }}</div>
     </div>
 
     <!-- 题目列表 -->
@@ -235,17 +243,17 @@ function typeLabel(t: string) {
       <div v-if="loading" class="loading"><div class="spinner"></div></div>
       <div v-else-if="questions.length === 0" class="empty">
         <div class="empty-icon">📚</div>
-        <p>题库为空，去「导入题库」开始吧。</p>
+        <p>{{ $t('library.emptyQuestions') }}</p>
       </div>
       <div v-else class="card">
         <table class="table">
           <thead>
-            <tr><th>题干</th><th>题型</th><th>状态</th><th>来源</th><th>操作</th></tr>
+            <tr><th>{{ $t('library.colStem') }}</th><th>{{ $t('library.colType') }}</th><th>{{ $t('library.colStatus') }}</th><th>{{ $t('library.colSource') }}</th><th>{{ $t('library.colActions') }}</th></tr>
           </thead>
           <tbody>
             <tr v-for="q in questions" :key="q.id">
               <td class="grow">{{ q.current_version?.payload.stem?.slice(0, 70) }}</td>
-              <td><span class="badge">{{ typeLabel(q.type) }}</span></td>
+              <td><span class="badge">{{ $t(typeKey(q.type)) }}</span></td>
               <td>
                 <span class="badge" :class="{
                   'badge-success': q.status === 'published',
@@ -256,10 +264,10 @@ function typeLabel(t: string) {
               <td class="text-muted">{{ q.source }}</td>
               <td>
                 <div class="flex gap-2">
-                  <button v-if="q.status === 'draft'" class="btn btn-sm" @click="transition(q, 'review')">送审</button>
-                  <button v-if="q.status === 'reviewed'" class="btn btn-sm btn-success" @click="transition(q, 'publish')">发布</button>
-                  <button v-if="!['published', 'archived'].includes(q.status)" class="btn btn-sm btn-ghost" @click="transition(q, 'archive')">归档</button>
-                  <button v-if="q.status === 'published'" class="btn btn-sm btn-ghost" @click="transition(q, 'archive')">归档</button>
+                  <button v-if="q.status === 'draft'" class="btn btn-sm" @click="transition(q, 'review')">{{ $t('library.actionReview') }}</button>
+                  <button v-if="q.status === 'reviewed'" class="btn btn-sm btn-success" @click="transition(q, 'publish')">{{ $t('library.actionPublish') }}</button>
+                  <button v-if="!['published', 'archived'].includes(q.status)" class="btn btn-sm btn-ghost" @click="transition(q, 'archive')">{{ $t('library.actionArchive') }}</button>
+                  <button v-if="q.status === 'published'" class="btn btn-sm btn-ghost" @click="transition(q, 'archive')">{{ $t('library.actionArchive') }}</button>
                 </div>
               </td>
             </tr>
@@ -271,15 +279,12 @@ function typeLabel(t: string) {
     <!-- 导入 -->
     <template v-if="tab === 'import'">
       <div class="card">
-        <h3>导入题库</h3>
-        <p class="text-secondary mb-3">
-          支持 <strong>Markdown</strong>（`## 题干` / `A. 选项` / `答案：A` / `解析：…`）、<strong>JSON</strong>
-          （`{"questions": [...]}` 或数组）、<strong>纯文本</strong>（`1. 题干` 开头）。判断题用 A 正确 / B 错误。
-        </p>
+        <h3>{{ $t('library.importTitle') }}</h3>
+        <p class="text-secondary mb-3" v-html="$t('library.importHelp')"></p>
         <div class="flex gap-3">
           <input type="file" accept=".md,.markdown,.json,.txt,.text" class="input" style="max-width: 400px" @change="onFile" />
           <button class="btn btn-primary" :disabled="!file || importing" @click="doPreflight">
-            {{ importing ? '解析中…' : '解析文件' }}
+            {{ importing ? $t('library.parsing') : $t('library.parseFile') }}
           </button>
         </div>
         <div v-if="file" class="hint mt-2">{{ file.name }} · {{ (file.size / 1024).toFixed(1) }} KB</div>
@@ -287,27 +292,27 @@ function typeLabel(t: string) {
 
       <div v-if="preview" class="card">
         <div class="flex-between mb-3">
-          <h3 style="margin: 0">解析结果：{{ preview.file_name }}</h3>
+          <h3 style="margin: 0">{{ $t('library.parseResult', { name: preview.file_name }) }}</h3>
           <span class="badge" :class="preview.error_count > 0 ? 'badge-warning' : 'badge-success'">
-            {{ preview.valid_count }} 道有效 / {{ preview.error_count }} 道错误
+            {{ $t('library.parseStats', { valid: preview.valid_count, error: preview.error_count }) }}
           </span>
         </div>
         <div v-if="preview.errors.length > 0" class="mb-3">
           <div v-for="e in preview.errors.slice(0, 10)" :key="e.item_no" class="error-text">
-            第 {{ e.item_no }} 题：{{ e.error }}
+            {{ $t('library.parseErrorLine', { no: e.item_no, error: e.error }) }}
           </div>
-          <div v-if="preview.errors.length > 10" class="hint">…还有 {{ preview.errors.length - 10 }} 条错误</div>
+          <div v-if="preview.errors.length > 10" class="hint">{{ $t('library.moreErrors', { count: preview.errors.length - 10 }) }}</div>
         </div>
         <div v-if="preview.preview_items.length > 0" class="mb-3">
-          <div class="hint mb-2">预览（前 {{ preview.preview_items.length }} 道）：</div>
+          <div class="hint mb-2">{{ $t('library.previewLabel', { count: preview.preview_items.length }) }}</div>
           <div v-for="(item, i) in preview.preview_items" :key="i" class="text-secondary" style="white-space: pre-wrap">
             {{ i + 1 }}. {{ item.stem }}
           </div>
         </div>
         <button v-if="!batch" class="btn btn-success" :disabled="importing || preview.valid_count === 0" @click="doCommit">
-          {{ importing ? '导入中…' : `确认导入 ${preview.valid_count} 道题` }}
+          {{ importing ? $t('common.importing') : $t('library.confirmImport', { count: preview.valid_count }) }}
         </button>
-        <div v-if="batch" class="badge badge-success">✅ 已导入：{{ batch.items.filter((i) => i.status === 'imported').length }} 道题入库</div>
+        <div v-if="batch" class="badge badge-success">{{ $t('library.imported', { count: batch.items.filter((i) => i.status === 'imported').length }) }}</div>
       </div>
     </template>
 
@@ -315,11 +320,11 @@ function typeLabel(t: string) {
     <template v-if="tab === 'knowledge'">
       <div class="card">
         <div class="flex gap-3">
-          <input v-model="newKnow" class="input" style="max-width: 300px" placeholder="知识点名称，如：微积分" @keyup.enter="createKnow" />
-          <button class="btn btn-primary" :disabled="!newKnow.trim()" @click="createKnow">添加</button>
+          <input v-model="newKnow" class="input" style="max-width: 300px" :placeholder="$t('library.knowledgePlaceholder')" @keyup.enter="createKnow" />
+          <button class="btn btn-primary" :disabled="!newKnow.trim()" @click="createKnow">{{ $t('common.add') }}</button>
         </div>
         <div v-if="tree.length === 0" class="empty" style="padding: var(--space-4)">
-          <p>暂无知识点。</p>
+          <p>{{ $t('library.emptyKnowledge') }}</p>
         </div>
         <ul v-else class="know-tree">
           <li v-for="node in tree" :key="node.id">
@@ -339,18 +344,18 @@ function typeLabel(t: string) {
       <div v-if="info" class="offline-banner">{{ info }}</div>
       <div class="grid" style="grid-template-columns: 1fr 1fr">
         <div class="card">
-          <div class="card-title">本地资料（支持 Markdown / TXT）</div>
+          <div class="card-title">{{ $t('library.localDocs') }}</div>
           <div class="flex gap-3 mb-3">
             <input type="file" accept=".md,.markdown,.txt,.text" class="input" style="max-width: 320px" @change="onDocFile" />
             <button class="btn btn-primary" :disabled="!docFile || docImporting" @click="doDocImport">
-              {{ docImporting ? '导入中…' : '导入并索引' }}
+              {{ docImporting ? $t('common.importing') : $t('library.importAndIndex') }}
             </button>
           </div>
           <div v-if="docs.length === 0" class="empty" style="padding: var(--space-3)">
-            <p class="hint">导入学习资料（讲义/笔记），即可基于资料提问。</p>
+            <p class="hint">{{ $t('library.docsEmptyHint') }}</p>
           </div>
           <table v-else class="table">
-            <thead><tr><th>文件</th><th>大小</th><th>状态</th><th></th></tr></thead>
+            <thead><tr><th>{{ $t('library.colFile') }}</th><th>{{ $t('library.colSize') }}</th><th>{{ $t('library.colStatus') }}</th><th></th></tr></thead>
             <tbody>
               <tr v-for="d in docs" :key="d.id">
                 <td>{{ d.file_name }}</td>
@@ -360,17 +365,17 @@ function typeLabel(t: string) {
                     {{ d.status }}
                   </span>
                 </td>
-                <td><button class="btn btn-sm btn-ghost" @click="deleteDoc(d)">删除</button></td>
+                <td><button class="btn btn-sm btn-ghost" @click="deleteDoc(d)">{{ $t('common.delete') }}</button></td>
               </tr>
             </tbody>
           </table>
         </div>
 
         <div class="card">
-          <div class="card-title">资料问答（RAG）</div>
-          <textarea v-model="ragQuestion" class="textarea" style="min-height: 80px" placeholder="基于已导入资料提问，例如：万有引力定律的内容是什么？"></textarea>
+          <div class="card-title">{{ $t('library.ragTitle') }}</div>
+          <textarea v-model="ragQuestion" class="textarea" style="min-height: 80px" :placeholder="$t('library.ragPlaceholder')"></textarea>
           <button class="btn btn-primary mt-2" :disabled="ragStreaming || !ragQuestion.trim()" @click="ragAsk">
-            {{ ragStreaming ? '回答中…' : '提问' }}
+            {{ ragStreaming ? $t('library.answering') : $t('library.ask') }}
           </button>
           <div v-if="ragAnswer" class="chat-msg assistant mt-3" style="max-width: 100%">
             <span :class="{ 'stream-cursor': ragStreaming }">{{ ragAnswer }}</span>

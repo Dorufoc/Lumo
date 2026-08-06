@@ -1,5 +1,10 @@
 // API 客户端：方法名式 RPC over HTTP + SSE 事件流。
 // 后端统一信封 { data, error, request_id }；错误码与 API 文档一致。
+// 错误消息显示路径（Todo 8 决策）：后端 error.message 默认中文、不本地化；
+// 前端仅对「已知 error.code」做 i18n key 映射（en-US 下显示英文文案），
+// 未映射的 code 原样回退显示后端 message（zh-CN 下即原文）。
+
+import { t } from '@/i18n'
 
 export interface ApiError {
   code: string
@@ -27,6 +32,64 @@ export class ApiException extends Error {
     this.details = err.details
     this.requestId = requestId
   }
+
+  /** 当前语言下的错误文案：已知 code → i18n key 文案；未映射 code → 后端原始 message。 */
+  localizedMessage(): string {
+    return localizeApiError({ code: this.code, message: this.message, retryable: this.retryable, details: this.details })
+  }
+}
+
+// 已知错误码 → i18n key 映射表（与 internal/domain/errors.go 的 24 个稳定码 + 客户端生成码对应）。
+// 未出现在此表中的 code 一律回退原始 message，绝不空白。
+const ERROR_MESSAGE_KEYS: Record<string, string> = {
+  FORBIDDEN: 'error.forbidden',
+  UNAUTHORIZED: 'error.unauthorized',
+  NOT_FOUND: 'error.notFound',
+  CONFLICT: 'error.conflict',
+  INVALID_ARGUMENT: 'error.invalidArgument',
+  INVALID_STATE: 'error.invalidState',
+  INTERNAL: 'error.internal',
+  DATABASE_UNAVAILABLE: 'error.databaseUnavailable',
+  PROVIDER_TIMEOUT: 'error.providerTimeout',
+  PROVIDER_RATE_LIMITED: 'error.providerRateLimited',
+  OUTPUT_INVALID: 'error.outputInvalid',
+  IMPORT_FAILED: 'error.importFailed',
+  SANDBOX_LIMIT: 'error.sandboxLimit',
+  REQUEST_CANCELLED: 'error.requestCancelled',
+  FEATURE_DISABLED: 'error.featureDisabled',
+  QUOTA_EXCEEDED: 'error.quotaExceeded',
+  EXAM_IN_PROGRESS: 'error.examInProgress',
+  PLUGIN_ERROR: 'error.pluginError',
+  WEBHOOK_FAILED: 'error.webhookFailed',
+  SHARE_EXPIRED: 'error.shareExpired',
+  FAMILY_BOUND: 'error.familyBound',
+  REVIEW_REQUIRED: 'error.reviewRequired',
+  WORKSPACE_LOCKED: 'error.workspaceLocked',
+  STORAGE_FULL: 'error.storageFull',
+  MIGRATION_BLOCKED: 'error.migrationBlocked',
+  // 客户端生成的错误码（本地失败，非后端信封）
+  NETWORK: 'error.network',
+  STREAM_FAILED: 'error.streamFailed',
+  STREAM_INTERRUPTED: 'error.streamInterrupted',
+  UNKNOWN: 'error.unknown',
+  NO_SESSION: 'error.noSession',
+}
+
+/** 已知 code → 当前语言下的 i18n 文案；未映射 → null（调用方回退原始 message）。 */
+export function errorMessageKey(code: string): string | null {
+  return ERROR_MESSAGE_KEYS[code] ?? null
+}
+
+/** 把 ApiError 本地化：已知 code 用 i18n key 文案；未映射 code 原样返回 err.message。 */
+export function localizeApiError(err: ApiError): string {
+  const key = errorMessageKey(err.code)
+  return key ? t(key) : err.message
+}
+
+/** 把任意抛出的错误归一为展示文本：ApiException 走本地化映射，其余 Error 原样返回 message。 */
+export function localizedMessageOf(e: unknown): string {
+  if (e instanceof ApiException) return e.localizedMessage()
+  return e instanceof Error ? e.message : String(e ?? '')
 }
 
 const BASE = '/api/v1'
@@ -41,13 +104,13 @@ export async function call<T = unknown>(method: string, params: Record<string, u
       body: JSON.stringify(params),
     })
   } catch {
-    throw new ApiException({ code: 'NETWORK', message: '无法连接本地服务，请确认后端已启动', retryable: true })
+    throw new ApiException({ code: 'NETWORK', message: t('error.network'), retryable: true })
   }
   let envelope: Envelope<T>
   try {
     envelope = await res.json()
   } catch {
-    throw new ApiException({ code: 'INTERNAL', message: '服务响应异常', retryable: true })
+    throw new ApiException({ code: 'INTERNAL', message: t('error.internal'), retryable: true })
   }
   if (envelope.error) {
     throw new ApiException(envelope.error, envelope.request_id)
@@ -126,7 +189,7 @@ export function openEventStream(
         break
       case 'agent:error':
         handlers.onError?.(
-          { code: String((data.error as { code?: string })?.code ?? 'UNKNOWN'), message: String((data.error as { message?: string })?.message ?? 'AI 请求失败'), retryable: true },
+          { code: String((data.error as { code?: string })?.code ?? 'UNKNOWN'), message: String((data.error as { message?: string })?.message ?? t('error.unknown')), retryable: true },
           meta,
         )
         break
@@ -143,7 +206,7 @@ export function openEventStream(
         headers: { Accept: 'text/event-stream' },
       })
       if (!res.ok || !res.body) {
-        handlers.onError?.({ code: 'STREAM_FAILED', message: '事件流连接失败', retryable: true }, { request_id: requestId, session_id: sessionId })
+        handlers.onError?.({ code: 'STREAM_FAILED', message: t('error.streamFailed'), retryable: true }, { request_id: requestId, session_id: sessionId })
         return
       }
       const reader = res.body.getReader()
@@ -181,7 +244,7 @@ export function openEventStream(
       }
     } catch (e) {
       if (!controller.signal.aborted) {
-        handlers.onError?.({ code: 'STREAM_FAILED', message: '事件流中断', retryable: true }, { request_id: requestId, session_id: sessionId })
+        handlers.onError?.({ code: 'STREAM_INTERRUPTED', message: t('error.streamInterrupted'), retryable: true }, { request_id: requestId, session_id: sessionId })
       }
     }
   }

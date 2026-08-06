@@ -2,11 +2,14 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import QuestionViewer from '@/components/QuestionViewer.vue'
+import { localizedMessageOf } from '@/api/client'
+import { useI18nStore } from '@/stores/i18n'
 import { usePracticeStore } from '@/stores/practice'
 
 const route = useRoute()
 const router = useRouter()
 const store = usePracticeStore()
+const i18n = useI18nStore()
 
 const picking = ref(true)
 const selected = ref<Set<string>>(new Set())
@@ -25,7 +28,7 @@ async function loadLibrary() {
   try {
     await store.loadLibrary()
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   } finally {
     loading.value = false
   }
@@ -40,7 +43,7 @@ function togglePick(id: string) {
 
 async function startPractice() {
   if (selected.value.size === 0) {
-    error.value = '请先选择题目'
+    error.value = i18n.t('practice.selectFirst')
     return
   }
   loading.value = true
@@ -50,7 +53,7 @@ async function startPractice() {
     picking.value = false
     current.value = 0
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   } finally {
     loading.value = false
   }
@@ -105,7 +108,7 @@ async function doSubmit() {
     const result = await store.submit()
     router.push(`/result/${result.session_id}`)
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
     submitting.value = false
   }
 }
@@ -115,7 +118,7 @@ async function skipCurrent() {
   try {
     await store.skip(q.value.question_version_id)
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   }
 }
 
@@ -127,7 +130,7 @@ onMounted(async () => {
       await store.resume(sessionId.value)
       startTimer()
     } catch (e) {
-      error.value = (e as Error).message
+      error.value = localizedMessageOf(e)
     } finally {
       loading.value = false
     }
@@ -145,29 +148,29 @@ onBeforeUnmount(() => {
   <div>
     <div v-if="error" class="error-banner">
       <span>{{ error }}</span>
-      <button class="btn btn-sm" @click="error = ''">关闭</button>
+      <button class="btn btn-sm" @click="error = ''">{{ $t('common.close') }}</button>
     </div>
 
     <!-- 选题模式 -->
     <template v-if="picking">
       <div class="page-header">
         <div>
-          <h1>开始练习</h1>
-          <div class="subtitle">选择要练习的题目（仅已发布题目）</div>
+          <h1>{{ $t('practice.title') }}</h1>
+          <div class="subtitle">{{ $t('practice.subtitle') }}</div>
         </div>
         <button class="btn btn-primary" :disabled="loading || selected.size === 0" @click="startPractice">
-          开始练习（{{ selected.size }}）
+          {{ $t('practice.startButton', { count: selected.size }) }}
         </button>
       </div>
       <div v-if="loading" class="loading"><div class="spinner"></div></div>
       <div v-else-if="!store.library || store.library.items.length === 0" class="empty">
         <div class="empty-icon">📚</div>
-        <p>题库为空。请先到「题库与资料」导入或创建题目。</p>
-        <RouterLink to="/library" class="btn btn-primary">去导入题库</RouterLink>
+        <p>{{ $t('practice.emptyLibrary') }}</p>
+        <RouterLink to="/library" class="btn btn-primary">{{ $t('common.goImport') }}</RouterLink>
       </div>
       <div v-else class="card">
         <table class="table">
-          <thead><tr><th style="width: 40px"></th><th>题干</th><th>题型</th><th>知识点</th></tr></thead>
+          <thead><tr><th style="width: 40px"></th><th>{{ $t('practice.colStem') }}</th><th>{{ $t('practice.colType') }}</th><th>{{ $t('practice.colKnowledge') }}</th></tr></thead>
           <tbody>
             <tr v-for="item in store.library.items" :key="item.id" style="cursor: pointer" @click="togglePick(item.id)">
               <td><input type="checkbox" :checked="selected.has(item.id)" @click.stop /></td>
@@ -184,14 +187,14 @@ onBeforeUnmount(() => {
     <template v-else-if="store.session && q">
       <div class="flex-between mb-3">
         <div class="flex gap-2" style="align-items: center">
-          <button class="btn btn-sm" :disabled="current === 0" @click="current--">上一题</button>
-          <span class="text-secondary">第 {{ current + 1 }} / {{ questions.length }} 题</span>
-          <button class="btn btn-sm" :disabled="current >= questions.length - 1" @click="current++">下一题</button>
-          <button class="btn btn-sm btn-ghost" @click="skipCurrent">跳过</button>
+          <button class="btn btn-sm" :disabled="current === 0" @click="current--">{{ $t('practice.prev') }}</button>
+          <span class="text-secondary">{{ $t('practice.questionCount', { current: current + 1, total: questions.length }) }}</span>
+          <button class="btn btn-sm" :disabled="current >= questions.length - 1" @click="current++">{{ $t('practice.next') }}</button>
+          <button class="btn btn-sm btn-ghost" @click="skipCurrent">{{ $t('common.skip') }}</button>
         </div>
         <div class="flex gap-2" style="align-items: center">
           <span v-if="remain > 0" class="badge" :class="{ 'badge-error': remain < 60 }">⏱ {{ remainText }}</span>
-          <button class="btn btn-primary" :disabled="submitting" @click="confirmSubmit = true">提交练习</button>
+          <button class="btn btn-primary" :disabled="submitting" @click="confirmSubmit = true">{{ $t('practice.submit') }}</button>
         </div>
       </div>
       <div class="progress mb-4"><div :style="{ width: progress + '%' }"></div></div>
@@ -220,22 +223,22 @@ onBeforeUnmount(() => {
           :model-value="currentAnswer"
           @update:model-value="currentAnswer = $event as any"
         />
-        <div v-if="isSkipped" class="hint mt-2">已跳过此题（提交后计为未作答）</div>
+        <div v-if="isSkipped" class="hint mt-2">{{ $t('practice.skippedHint') }}</div>
       </div>
     </template>
 
     <!-- 提交确认 -->
     <div v-if="confirmSubmit" class="modal-mask" @click.self="confirmSubmit = false">
       <div class="card" style="width: 400px; margin: auto">
-        <h3>确认提交？</h3>
+        <h3>{{ $t('practice.confirmTitle') }}</h3>
         <p class="text-secondary">
-          共 {{ questions.length }} 题，已作答 {{ Object.keys(store.answers).filter((k) => store.answers[k]).length }} 题。
-          提交后不可修改答案。
+          {{ $t('practice.confirmBody', { total: questions.length, answered: Object.keys(store.answers).filter((k) => store.answers[k]).length }) }}
+          {{ $t('practice.confirmBodyNote') }}
         </p>
         <div class="flex gap-3" style="justify-content: flex-end">
-          <button class="btn" @click="confirmSubmit = false">返回检查</button>
+          <button class="btn" @click="confirmSubmit = false">{{ $t('practice.backCheck') }}</button>
           <button class="btn btn-primary" :disabled="submitting" @click="doSubmit">
-            {{ submitting ? '提交中…' : '确认提交' }}
+            {{ submitting ? $t('practice.submitting') : $t('practice.confirmSubmit') }}
           </button>
         </div>
       </div>

@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import QuestionViewer from '@/components/QuestionViewer.vue'
-import { call } from '@/api/client'
+import { call, localizedMessageOf } from '@/api/client'
 import type { PracticeResult } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 
@@ -22,7 +22,7 @@ onMounted(async () => {
       session_id: sessionId,
     })
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   } finally {
     loading.value = false
   }
@@ -55,11 +55,11 @@ function answerOf(q: PracticeResult['questions'][number]): string | string[] | n
           {{ accuracy }}%
         </h1>
         <div class="text-secondary mb-3">
-          总分 {{ result.total_score }} / {{ result.max_score }} · 答对 {{ correctCount }} / {{ result.questions.length }} 题
+          {{ $t('result.summary', { score: result.total_score, max: result.max_score, correct: correctCount, total: result.questions.length }) }}
         </div>
         <div class="flex gap-3" style="justify-content: center">
-          <RouterLink to="/practice" class="btn btn-primary">再练一组</RouterLink>
-          <RouterLink to="/review" class="btn">去复习错题</RouterLink>
+          <RouterLink to="/practice" class="btn btn-primary">{{ $t('result.practiceAgain') }}</RouterLink>
+          <RouterLink to="/review" class="btn">{{ $t('result.goReview') }}</RouterLink>
         </div>
       </div>
 
@@ -67,13 +67,13 @@ function answerOf(q: PracticeResult['questions'][number]): string | string[] | n
         <div class="flex-between mb-2">
           <div class="flex gap-2" style="align-items: center">
             <span class="badge" :class="q.is_wrong ? 'badge-error' : 'badge-success'">
-              {{ q.is_wrong ? '✗' : '✓' }} 第 {{ i + 1 }} 题
+              {{ q.is_wrong ? '✗' : '✓' }} {{ $t('result.questionNo', { num: i + 1 }) }}
             </span>
             <span class="badge">{{ q.type }}</span>
-            <span v-if="q.skipped" class="badge badge-warning">已跳过</span>
+            <span v-if="q.skipped" class="badge badge-warning">{{ $t('result.skipped') }}</span>
           </div>
           <button class="btn btn-sm btn-ghost" @click="openIndex = openIndex === i ? null : i">
-            {{ openIndex === i ? '收起' : '查看' }}
+            {{ openIndex === i ? $t('result.collapse') : $t('result.view') }}
           </button>
         </div>
         <QuestionViewer

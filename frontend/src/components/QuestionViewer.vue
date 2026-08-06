@@ -97,29 +97,29 @@ const fillText = computed(() => (typeof stdAnswer.value === 'string' ? stdAnswer
         v-if="mode === 'answer'"
         v-model="fillAnswer"
         class="textarea"
-        placeholder="填写答案，多空以换行分隔"
+        :placeholder="$t('question.fillPlaceholder')"
         rows="2"
       ></textarea>
       <div v-else>
-        <div class="field"><label>你的答案</label><div class="input" style="min-height: 40px">{{ answerText || '（未作答）' }}</div></div>
-        <div class="field"><label>标准答案</label><div class="input" style="min-height: 40px">{{ fillText }}</div></div>
+        <div class="field"><label>{{ $t('question.yourAnswer') }}</label><div class="input" style="min-height: 40px">{{ answerText || $t('question.unanswered') }}</div></div>
+        <div class="field"><label>{{ $t('question.standardAnswer') }}</label><div class="input" style="min-height: 40px">{{ fillText }}</div></div>
       </div>
     </div>
 
     <!-- 简答/代码 -->
     <div v-else-if="isShort">
       <div v-if="payload.type === 'code' && payload.grading_config?.language" class="badge badge-primary mb-2">
-        {{ payload.grading_config.language }} · 参考实现见解析
+        {{ $t('question.codeHint', { lang: String(payload.grading_config.language) }) }}
       </div>
       <textarea
         v-if="mode === 'answer'"
         v-model="answerTextProxy"
         class="textarea"
-        :placeholder="payload.type === 'code' ? '粘贴你的代码…' : '输入你的回答…'"
+        :placeholder="payload.type === 'code' ? $t('question.codePlaceholder') : $t('question.answerPlaceholder')"
         rows="6"
       ></textarea>
       <div v-else>
-        <div class="field"><label>你的答案</label><div class="input" style="min-height: 40px; white-space: pre-wrap">{{ answerText || '（未作答）' }}</div></div>
+        <div class="field"><label>{{ $t('question.yourAnswer') }}</label><div class="input" style="min-height: 40px; white-space: pre-wrap">{{ answerText || $t('question.unanswered') }}</div></div>
       </div>
     </div>
 
@@ -127,14 +127,14 @@ const fillText = computed(() => (typeof stdAnswer.value === 'string' ? stdAnswer
     <template v-if="mode === 'result'">
       <div class="flex gap-3 mt-3 mb-2">
         <span class="badge" :class="wrong ? 'badge-error' : 'badge-success'">
-          {{ wrong ? '答错' : '答对' }} · {{ grading?.score ?? 0 }}/{{ grading?.max_score ?? 0 }}
+          {{ wrong ? $t('question.wrong') : $t('question.correct') }} · {{ grading?.score ?? 0 }}/{{ grading?.max_score ?? 0 }}
         </span>
-        <span v-if="grading?.status === 'failed'" class="badge badge-warning">AI 评分未完成</span>
-        <span v-else-if="grading?.status === 'needs_review'" class="badge badge-warning">待复核</span>
+        <span v-if="grading?.status === 'failed'" class="badge badge-warning">{{ $t('question.gradingFailed') }}</span>
+        <span v-else-if="grading?.status === 'needs_review'" class="badge badge-warning">{{ $t('question.needsReview') }}</span>
       </div>
       <div v-if="grading?.reason" class="text-secondary mb-3" style="white-space: pre-wrap">{{ grading.reason }}</div>
       <div v-if="payload.analysis" class="card" style="background: var(--color-primary-soft); border-color: var(--color-primary)">
-        <div class="card-title" style="font-size: var(--text-base)">解析</div>
+        <div class="card-title" style="font-size: var(--text-base)">{{ $t('question.analysis') }}</div>
         <div style="white-space: pre-wrap">{{ payload.analysis }}</div>
       </div>
     </template>

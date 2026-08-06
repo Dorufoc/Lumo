@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { call } from '@/api/client'
+import { t } from '@/i18n'
 import type { Settings, UserProfile, Workspace } from '@/api/types'
 
 interface SessionState {
@@ -52,7 +53,7 @@ export const useSessionStore = defineStore('session', {
         userId = list?.[0]?.id
       }
       if (!userId) {
-        const created = await call<UserProfile>('UserCreate', { workspace_id: workspaceId, display_name: '学习者' })
+        const created = await call<UserProfile>('UserCreate', { workspace_id: workspaceId, display_name: t('common.learner') })
         userId = created.id
       }
       this.user = await call<UserProfile>('UserGetProfile', { workspace_id: workspaceId, user_id: userId })

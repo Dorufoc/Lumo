@@ -17,6 +17,6 @@ const isOnboarding = computed(() => route.name === 'onboarding')
 </script>
 
 <template>
-  <div v-if="!ready" class="loading"><div class="spinner"></div>&nbsp;正在连接本地服务…</div>
+  <div v-if="!ready" class="loading"><div class="spinner"></div>&nbsp;{{ $t('app.connecting') }}</div>
   <component :is="isOnboarding ? RouterView : AppLayout" v-else />
 </template>

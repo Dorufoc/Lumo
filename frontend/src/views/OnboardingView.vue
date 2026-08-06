@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { localizedMessageOf } from '@/api/client'
+import { useI18nStore } from '@/stores/i18n'
 import { useSessionStore } from '@/stores/session'
 
 const router = useRouter()
 const session = useSessionStore()
+const i18n = useI18nStore()
 
 const name = ref('')
 const creating = ref(false)
@@ -12,7 +15,7 @@ const error = ref('')
 
 async function createWorkspace() {
   if (!name.value.trim()) {
-    error.value = '请输入工作区名称'
+    error.value = i18n.t('onboarding.nameRequired')
     return
   }
   creating.value = true
@@ -21,7 +24,7 @@ async function createWorkspace() {
     await session.createWorkspace(name.value.trim())
     router.push('/dashboard')
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   } finally {
     creating.value = false
   }
@@ -32,7 +35,7 @@ async function selectWorkspace(id: string) {
     await session.activate(id)
     router.push('/dashboard')
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   }
 }
 </script>
@@ -40,22 +43,22 @@ async function selectWorkspace(id: string) {
 <template>
   <div class="onboarding">
     <div class="card onboarding-card">
-      <h1>👋 欢迎使用 Lumo AI</h1>
-      <p class="subtitle">本地优先的智能刷题平台：目标 → 练习 → 判分 → 错题复习，离线也能完整使用。</p>
+      <h1>{{ $t('onboarding.welcome') }}</h1>
+      <p class="subtitle">{{ $t('onboarding.subtitle') }}</p>
 
       <div v-if="error" class="error-banner">{{ error }}</div>
 
       <div class="field">
-        <label for="ws-name">新建学习空间</label>
-        <input id="ws-name" v-model="name" class="input" placeholder="例如：高等数学期末复习" maxlength="120" @keyup.enter="createWorkspace" />
+        <label for="ws-name">{{ $t('onboarding.newWorkspace') }}</label>
+        <input id="ws-name" v-model="name" class="input" :placeholder="$t('onboarding.wsPlaceholder')" maxlength="120" @keyup.enter="createWorkspace" />
       </div>
       <button class="btn btn-primary" :disabled="creating" @click="createWorkspace">
-        {{ creating ? '创建中…' : '创建并开始' }}
+        {{ creating ? $t('common.creating') : $t('onboarding.createAndStart') }}
       </button>
 
       <template v-if="session.workspaces.length > 0">
         <div class="divider"></div>
-        <h3>已有学习空间</h3>
+        <h3>{{ $t('onboarding.existing') }}</h3>
         <div class="ws-list">
           <button v-for="ws in session.workspaces" :key="ws.id" class="ws-item" @click="selectWorkspace(ws.id)">
             <span class="ws-name">{{ ws.name }}</span>

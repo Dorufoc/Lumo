@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { call } from '@/api/client'
+import { t } from '@/i18n'
 import type { PracticeResult, PracticeSession, QuestionPage } from '@/api/types'
 import { useSessionStore } from './session'
 
@@ -92,7 +93,7 @@ export const usePracticeStore = defineStore('practice', {
       })
     },
     async submit(): Promise<PracticeResult> {
-      if (!this.session) throw new Error('没有进行中的练习')
+      if (!this.session) throw new Error(t('error.noSession'))
       const session = useSessionStore()
       const result = await call<PracticeResult>('PracticeSubmit', {
         workspace_id: session.workspaceId,

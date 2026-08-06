@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import QuestionViewer from '@/components/QuestionViewer.vue'
-import { call } from '@/api/client'
+import { call, localizedMessageOf } from '@/api/client'
 import type { ReviewCard } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 
@@ -30,7 +30,7 @@ async function load() {
       limit: 50,
     })
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   } finally {
     loading.value = false
   }
@@ -62,7 +62,7 @@ async function submitRating(r: 'again' | 'hard' | 'good') {
     due.value.splice(current.value, 1)
     if (current.value >= due.value.length) current.value = Math.max(0, due.value.length - 1)
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   } finally {
     submitting.value = false
     rating.value = null
@@ -74,10 +74,10 @@ async function submitRating(r: 'again' | 'hard' | 'good') {
   <div>
     <div class="page-header">
       <div>
-        <h1>错题复习</h1>
-        <div class="subtitle">间隔记忆：不会 → 模糊 → 掌握，由服务端计算下次复习时间</div>
+        <h1>{{ $t('review.title') }}</h1>
+        <div class="subtitle">{{ $t('review.subtitle') }}</div>
       </div>
-      <button class="btn" @click="load">刷新</button>
+      <button class="btn" @click="load">{{ $t('common.refresh') }}</button>
     </div>
 
     <div v-if="error" class="error-banner">{{ error }}</div>
@@ -85,13 +85,13 @@ async function submitRating(r: 'again' | 'hard' | 'good') {
 
     <div v-else-if="due.length === 0" class="empty">
       <div class="empty-icon">🎉</div>
-      <p>当前没有到期的复习卡，太棒了！</p>
-      <p class="hint">错题会自动进入复习队列</p>
+      <p>{{ $t('review.empty') }}</p>
+      <p class="hint">{{ $t('review.emptyHint') }}</p>
     </div>
 
     <template v-else>
       <div class="flex-between mb-3">
-        <span class="text-secondary">还剩 {{ due.length }} 张 · 本轮已完成 {{ done }} 张</span>
+        <span class="text-secondary">{{ $t('review.progress', { due: due.length, done: done }) }}</span>
         <div class="progress grow" style="max-width: 300px"><div :style="{ width: '30%' }"></div></div>
       </div>
 
@@ -113,18 +113,18 @@ async function submitRating(r: 'again' | 'hard' | 'good') {
           />
           <div class="flex gap-3 mt-4" style="justify-content: flex-end">
             <button class="btn btn-danger" :disabled="submitting" @click="submitRating('again')">
-              {{ rating === 'again' ? '提交中…' : '😵 不会' }}
+              {{ rating === 'again' ? $t('common.submitting') : $t('review.again') }}
             </button>
             <button class="btn" :disabled="submitting" @click="submitRating('hard')">
-              {{ rating === 'hard' ? '提交中…' : '🤔 模糊' }}
+              {{ rating === 'hard' ? $t('common.submitting') : $t('review.hard') }}
             </button>
             <button class="btn btn-success" :disabled="submitting" @click="submitRating('good')">
-              {{ rating === 'good' ? '提交中…' : '😎 掌握' }}
+              {{ rating === 'good' ? $t('common.submitting') : $t('review.good') }}
             </button>
           </div>
         </template>
         <div v-if="!revealed" class="flex" style="justify-content: flex-end; margin-top: var(--space-4)">
-          <button class="btn" @click="revealed = true">显示答案与解析</button>
+          <button class="btn" @click="revealed = true">{{ $t('review.reveal') }}</button>
         </div>
       </div>
     </template>

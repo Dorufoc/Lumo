@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { call } from '@/api/client'
+import { call, localizedMessageOf } from '@/api/client'
 import type { LearningGoal, PlanTask } from '@/api/types'
 import { useSessionStore } from '@/stores/session'
 import { useRouter } from 'vue-router'
@@ -33,7 +33,7 @@ async function load() {
     goals.value = g ?? []
     todayTasks.value = t ?? []
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   } finally {
     loading.value = false
   }
@@ -58,7 +58,7 @@ async function createGoal() {
     form.value.name = ''
     await load()
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   } finally {
     creating.value = false
   }
@@ -74,7 +74,7 @@ async function transitionGoal(goal: LearningGoal, action: string) {
     })
     await load()
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   }
 }
 
@@ -87,7 +87,7 @@ async function generatePlan(goal: LearningGoal) {
     })
     await load()
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   }
 }
 
@@ -101,11 +101,11 @@ async function taskAction(task: PlanTask, action: string) {
     })
     await load()
   } catch (e) {
-    error.value = (e as Error).message
+    error.value = localizedMessageOf(e)
   }
 }
 
-const weekdayNames = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日']
+const weekdayNames = ['', 'plan.weekMon', 'plan.weekTue', 'plan.weekWed', 'plan.weekThu', 'plan.weekFri', 'plan.weekSat', 'plan.weekSun']
 const statusBadge = (s: string) =>
   ({ planned: 'badge', available: 'badge', in_progress: 'badge-primary', completed: 'badge-success', skipped: 'badge-offline' })[s] ?? 'badge'
 
@@ -118,39 +118,39 @@ onMounted(load)
   <div>
     <div class="page-header">
       <div>
-        <h1>学习计划</h1>
-        <div class="subtitle">目标 → 每日任务 → 练习闭环</div>
+        <h1>{{ $t('plan.title') }}</h1>
+        <div class="subtitle">{{ $t('plan.subtitle') }}</div>
       </div>
-      <button class="btn btn-primary" @click="showCreate = !showCreate">新建目标</button>
+      <button class="btn btn-primary" @click="showCreate = !showCreate">{{ $t('plan.newGoal') }}</button>
     </div>
 
     <div v-if="error" class="error-banner">{{ error }}</div>
     <div v-if="loading" class="loading"><div class="spinner"></div></div>
 
     <div v-if="showCreate" class="card">
-      <h3>创建学习目标</h3>
+      <h3>{{ $t('plan.createGoalTitle') }}</h3>
       <div class="form-row">
         <div class="field">
-          <label>目标名称</label>
-          <input v-model="form.name" class="input" placeholder="例如：高数期末 90 分" maxlength="160" />
+          <label>{{ $t('plan.goalName') }}</label>
+          <input v-model="form.name" class="input" :placeholder="$t('plan.goalPlaceholder')" maxlength="160" />
         </div>
         <div class="field">
-          <label>考试日期（可选）</label>
+          <label>{{ $t('plan.examDate') }}</label>
           <input v-model="form.exam_at" type="date" class="input" />
         </div>
       </div>
       <div class="form-row">
         <div class="field">
-          <label>目标分数</label>
+          <label>{{ $t('plan.targetScore') }}</label>
           <input v-model.number="form.target_score" type="number" class="input" min="0" max="100" />
         </div>
         <div class="field">
-          <label>每日学习分钟数</label>
+          <label>{{ $t('plan.dailyMinutes') }}</label>
           <input v-model.number="form.daily_minutes" type="number" class="input" min="10" max="480" />
         </div>
       </div>
       <div class="field">
-        <label>可用星期</label>
+        <label>{{ $t('plan.availableWeekdays') }}</label>
         <div class="flex gap-2" style="flex-wrap: wrap">
           <button
             v-for="(name, i) in weekdayNames.slice(1)"
@@ -164,14 +164,14 @@ onMounted(load)
                 : form.weekdays.push(i + 1)
             "
           >
-            {{ name }}
+            {{ $t(name) }}
           </button>
         </div>
       </div>
       <div class="flex gap-3" style="justify-content: flex-end">
-        <button class="btn" @click="showCreate = false">取消</button>
+        <button class="btn" @click="showCreate = false">{{ $t('common.cancel') }}</button>
         <button class="btn btn-primary" :disabled="creating || !form.name.trim()" @click="createGoal">
-          {{ creating ? '创建中…' : '创建' }}
+          {{ creating ? $t('common.creating') : $t('common.create') }}
         </button>
       </div>
     </div>
@@ -179,17 +179,17 @@ onMounted(load)
     <template v-if="!loading">
       <!-- 今日任务 -->
       <div class="card">
-        <div class="card-title">今日任务（{{ todayTasks.length }}）</div>
+        <div class="card-title">{{ $t('plan.todayTasks', { count: todayTasks.length }) }}</div>
         <div v-if="todayTasks.length === 0" class="empty" style="padding: var(--space-4)">
-          <p>今天还没有计划任务。</p>
-          <p class="hint">创建一个目标并生成计划后，任务会自动出现在这里</p>
+          <p>{{ $t('plan.noTasks') }}</p>
+          <p class="hint">{{ $t('plan.noTasksHint') }}</p>
         </div>
         <div v-else class="task-list">
           <div v-for="task in todayTasks" :key="task.id" class="task-item">
             <div class="grow">
               <div class="flex gap-2" style="align-items: center">
                 <span class="badge" :class="statusBadge(task.status)">{{ task.status }}</span>
-                <strong>{{ task.duration_min }} 分钟</strong>
+                <strong>{{ $t('plan.durationMinutes', { minutes: task.duration_min }) }}</strong>
                 <span class="text-muted">{{ task.task_type }}</span>
               </div>
               <div class="hint mt-1">{{ task.generated_reason }}</div>
@@ -200,21 +200,21 @@ onMounted(load)
                 class="btn btn-sm"
                 @click="taskAction(task, 'start')"
               >
-                开始
+                {{ $t('plan.start') }}
               </button>
               <button v-if="task.status === 'in_progress'" class="btn btn-sm btn-success" @click="taskAction(task, 'complete')">
-                完成
+                {{ $t('common.complete') }}
               </button>
               <button v-if="!['completed', 'skipped'].includes(task.status)" class="btn btn-sm btn-ghost" @click="taskAction(task, 'skip')">
-                跳过
+                {{ $t('common.skip') }}
               </button>
-              <button v-if="task.status === 'skipped'" class="btn btn-sm" @click="taskAction(task, 'restore')">恢复</button>
+              <button v-if="task.status === 'skipped'" class="btn btn-sm" @click="taskAction(task, 'restore')">{{ $t('plan.restore') }}</button>
               <button
                 v-if="task.status !== 'completed'"
                 class="btn btn-sm btn-primary"
                 @click="router.push('/practice')"
               >
-                去练习
+                {{ $t('plan.goPractice') }}
               </button>
             </div>
           </div>
@@ -223,9 +223,9 @@ onMounted(load)
 
       <!-- 目标列表 -->
       <div class="card">
-        <div class="card-title">学习目标（{{ activeGoals.length }} 个进行中）</div>
+        <div class="card-title">{{ $t('plan.goalsTitle', { count: activeGoals.length }) }}</div>
         <div v-if="goals.length === 0" class="empty" style="padding: var(--space-4)">
-          <p>还没有学习目标。</p>
+          <p>{{ $t('plan.noGoals') }}</p>
         </div>
         <div v-else class="goal-list">
           <div v-for="g in goals" :key="g.id" class="goal-item">
@@ -233,20 +233,20 @@ onMounted(load)
               <div class="flex gap-2" style="align-items: center">
                 <strong>{{ g.name }}</strong>
                 <span class="badge" :class="statusBadge(g.status)">{{ g.status }}</span>
-                <span v-if="g.target_score" class="text-secondary">目标 {{ g.target_score }} 分</span>
+                <span v-if="g.target_score" class="text-secondary">{{ $t('plan.targetScoreLabel', { score: g.target_score }) }}</span>
               </div>
               <div class="hint mt-1">
-                每日 {{ g.daily_minutes }} 分钟 · {{ weekdayNames[g.available_weekdays[0]] ?? '' }} 起
-                <span v-if="g.exam_at">· 考试 {{ g.exam_at?.slice(0, 10) }}</span>
+                {{ $t('plan.goalMeta', { minutes: g.daily_minutes, weekday: $t(weekdayNames[g.available_weekdays[0]] ?? '') }) }}
+                <span v-if="g.exam_at">{{ $t('plan.examMeta', { date: g.exam_at?.slice(0, 10) ?? '' }) }}</span>
               </div>
             </div>
             <div class="flex gap-2">
-              <button v-if="g.status === 'draft'" class="btn btn-sm" @click="transitionGoal(g, 'activate')">激活</button>
-              <button v-if="g.status === 'active'" class="btn btn-sm btn-primary" @click="generatePlan(g)">生成计划</button>
-              <button v-if="g.status === 'active'" class="btn btn-sm" @click="transitionGoal(g, 'pause')">暂停</button>
-              <button v-if="g.status === 'paused'" class="btn btn-sm" @click="transitionGoal(g, 'activate')">恢复</button>
+              <button v-if="g.status === 'draft'" class="btn btn-sm" @click="transitionGoal(g, 'activate')">{{ $t('plan.activate') }}</button>
+              <button v-if="g.status === 'active'" class="btn btn-sm btn-primary" @click="generatePlan(g)">{{ $t('plan.generate') }}</button>
+              <button v-if="g.status === 'active'" class="btn btn-sm" @click="transitionGoal(g, 'pause')">{{ $t('plan.pause') }}</button>
+              <button v-if="g.status === 'paused'" class="btn btn-sm" @click="transitionGoal(g, 'activate')">{{ $t('plan.restore') }}</button>
               <button v-if="!['completed', 'archived'].includes(g.status)" class="btn btn-sm btn-ghost" @click="transitionGoal(g, 'complete')">
-                完成
+                {{ $t('common.complete') }}
               </button>
             </div>
           </div>
