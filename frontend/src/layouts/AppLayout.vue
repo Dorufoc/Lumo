@@ -8,6 +8,7 @@ const nav = [
   { name: 'practice', to: '/practice', icon: '✏️', labelKey: 'nav.practice' },
   { name: 'plan', to: '/plan', icon: '📅', labelKey: 'nav.plan' },
   { name: 'review', to: '/review', icon: '🔁', labelKey: 'nav.review' },
+  { name: 'reports', to: '/reports', icon: '📈', labelKey: 'nav.reports' },
   { name: 'library', to: '/library', icon: '📚', labelKey: 'nav.library' },
   { name: 'tutor', to: '/tutor', icon: '🤖', labelKey: 'nav.tutor' },
   { name: 'settings', to: '/settings', icon: '⚙️', labelKey: 'nav.settings' },

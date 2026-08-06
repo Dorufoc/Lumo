@@ -199,6 +199,12 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "NotificationList", a.Svc.Reminder.NotificationList)
 	bind(srv, "NotificationMarkRead", a.Svc.Reminder.NotificationMarkRead)
 
+	// 学习报告与洞察（API 文档 7.5 / 完整设计文档 4.12）
+	bind(srv, "ReportGenerate", a.Svc.Report.ReportGenerate)
+	bind(srv, "ReportList", a.Svc.Report.ReportList)
+	bind(srv, "ReportExport", a.Svc.Report.ReportExport)
+	bind(srv, "InsightGet", a.Svc.Report.InsightGet)
+
 	// 4.8 笔记与标注（API 文档 7.1）
 	bind(srv, "NoteCreate", a.Svc.Note.NoteCreate)
 	bind(srv, "NoteUpdate", a.Svc.Note.NoteUpdate)

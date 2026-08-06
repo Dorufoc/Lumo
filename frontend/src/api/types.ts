@@ -793,3 +793,102 @@ export interface NotificationMarkReadReq {
   user_id: string
   ids: string[]
 }
+
+// ---------- 7.5 学习报告与数据洞察 ----------
+
+export type ReportPeriod = 'daily' | 'weekly' | 'monthly'
+export type ReportStatus = 'generating' | 'ready' | 'failed'
+export type InsightDimension = 'knowledge' | 'time' | 'trend'
+
+export interface ReportSummary {
+  practice_count: number
+  correct_count: number
+  accuracy: number
+  accuracy_samples: number
+  review_done: number
+  review_due: number
+  focus_minutes: number
+  focus_sessions: number
+  checkin_days: number
+  task_done: number
+  task_total: number
+  sample_insufficient: boolean
+}
+
+export interface WeakKnowledgeItem {
+  knowledge_id: string
+  name: string
+  wrong_count: number
+}
+
+export interface TrendPoint {
+  date: string
+  practice_count: number
+  correct_count: number
+  accuracy: number
+}
+
+export interface TimeDistribution {
+  morning: number
+  afternoon: number
+  evening: number
+}
+
+export interface ReportPayload {
+  period: ReportPeriod
+  period_start: string
+  period_end: string
+  generated_at: string
+  schema_version: string
+  summary: ReportSummary
+  weak_knowledge: WeakKnowledgeItem[]
+  trend: TrendPoint[]
+  time_distribution: TimeDistribution
+  interrupt_reasons: Record<string, number>
+  suggestions: string[]
+}
+
+export interface Report {
+  id: string
+  workspace_id: string
+  user_id: string
+  period: ReportPeriod
+  period_start: string
+  period_end: string
+  payload: ReportPayload
+  status: ReportStatus
+  created_at: string
+  updated_at: string
+}
+
+export interface ReportPage {
+  items: Report[]
+  next_cursor: string
+  has_more: boolean
+}
+
+export interface KnowledgeInsight {
+  knowledge_id: string
+  name: string
+  practice_count: number
+  correct_count: number
+  accuracy: number
+  last_reviewed_at: string | null
+}
+
+export interface TimeInsight {
+  distribution: TimeDistribution
+  avg_session_min: number
+  interrupt_reasons: Record<string, number>
+}
+
+export interface TrendInsight {
+  points: TrendPoint[]
+}
+
+export interface Insight {
+  dimension: InsightDimension
+  knowledge?: KnowledgeInsight[]
+  time?: TimeInsight
+  trend?: TrendInsight
+}

@@ -14,6 +14,7 @@ const router = createRouter({
     { path: '/checkin', name: 'checkin', component: () => import('@/views/CheckinView.vue'), meta: { title: '打卡成就' } },
     { path: '/focus', name: 'focus', component: () => import('@/views/FocusView.vue'), meta: { title: '专注' } },
     { path: '/notifications', name: 'notifications', component: () => import('@/views/NotificationsView.vue'), meta: { title: '通知' } },
+    { path: '/reports', name: 'reports', component: () => import('@/views/ReportsView.vue'), meta: { title: '报告' } },
     { path: '/plan', name: 'plan', component: () => import('@/views/PlanView.vue'), meta: { title: '计划' } },
     { path: '/library', name: 'library', component: () => import('@/views/LibraryView.vue'), meta: { title: '题库与资料' } },
     { path: '/tutor', name: 'tutor', component: () => import('@/views/TutorView.vue'), meta: { title: 'AI Tutor' } },
