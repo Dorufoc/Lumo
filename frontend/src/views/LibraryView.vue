@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { call, localizeApiError, localizedMessageOf, openEventStream, upload, type Citation } from '@/api/client'
-import type { Document, DocumentPage, ImportBatch, ImportPreview, KnowledgeNode, Question, QuestionPage } from '@/api/types'
+import type { Document, DocumentPage, Favorite, ImportBatch, ImportPreview, KnowledgeNode, Question, QuestionPage, ReadLaterAction, ReadLaterItem } from '@/api/types'
+import { useFavoritesStore } from '@/stores/favorites'
 import { useI18nStore } from '@/stores/i18n'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
 const i18n = useI18nStore()
+const favStore = useFavoritesStore()
 
-const tab = ref<'questions' | 'import' | 'knowledge' | 'documents'>('questions')
+const tab = ref<'questions' | 'import' | 'knowledge' | 'documents' | 'favorites'>('questions')
 const loading = ref(true)
 const error = ref('')
 
@@ -207,6 +209,7 @@ onMounted(() => {
   void loadQuestions()
   void loadTree()
   void loadDocs()
+  void favStore.load()
 })
 
 function typeKey(t: string) {
@@ -217,6 +220,53 @@ function typeKey(t: string) {
     short_answer: 'question.typeShort',
     code: 'question.typeCode',
   }[t] ?? t
+}
+
+// ---------- 收藏 / 稍后读 ----------
+function refTypeKey(t: string) {
+  return {
+    question: 'library.refTypeQuestion',
+    document: 'library.refTypeDocument',
+    agent_message: 'library.refTypeAgentMessage',
+    note: 'library.refTypeNote',
+  }[t] ?? t
+}
+
+function readLaterStatusKey(s: string) {
+  return {
+    queued: 'library.readLaterQueued',
+    read: 'library.readLaterRead',
+    skipped: 'library.readLaterSkipped',
+  }[s] ?? s
+}
+
+async function unsave(fav: Favorite) {
+  try {
+    await favStore.toggle(fav.ref_type, fav.ref_id)
+  } catch (e) {
+    error.value = localizedMessageOf(e)
+  }
+}
+
+async function readLaterAction(item: ReadLaterItem, action: ReadLaterAction) {
+  try {
+    await favStore.transitionReadLater(item.id, action)
+  } catch (e) {
+    error.value = localizedMessageOf(e)
+  }
+}
+
+async function addReadLater(d: Document) {
+  try {
+    await favStore.addReadLater(d.id)
+    info.value = i18n.t('library.readLaterAdded', { name: d.file_name })
+  } catch (e) {
+    error.value = localizedMessageOf(e)
+  }
+}
+
+function docName(id: string) {
+  return docs.value.find((d) => d.id === id)?.file_name ?? id.slice(0, 8)
 }
 </script>
 
@@ -236,6 +286,7 @@ function typeKey(t: string) {
       <div class="tab" :class="{ active: tab === 'import' }" @click="tab = 'import'">{{ $t('library.tabImport') }}</div>
       <div class="tab" :class="{ active: tab === 'knowledge' }" @click="tab = 'knowledge'">{{ $t('library.tabKnowledge') }}</div>
       <div class="tab" :class="{ active: tab === 'documents' }" @click="tab = 'documents'">{{ $t('library.tabDocuments') }}</div>
+      <div class="tab" :class="{ active: tab === 'favorites' }" @click="tab = 'favorites'">{{ $t('library.tabFavorites') }}</div>
     </div>
 
     <!-- 题目列表 -->
@@ -365,7 +416,12 @@ function typeKey(t: string) {
                     {{ d.status }}
                   </span>
                 </td>
-                <td><button class="btn btn-sm btn-ghost" @click="deleteDoc(d)">{{ $t('common.delete') }}</button></td>
+                <td>
+                  <div class="flex gap-2">
+                    <button class="btn btn-sm" @click="addReadLater(d)">{{ $t('library.readLaterAdd') }}</button>
+                    <button class="btn btn-sm btn-ghost" @click="deleteDoc(d)">{{ $t('common.delete') }}</button>
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -381,6 +437,73 @@ function typeKey(t: string) {
             <span :class="{ 'stream-cursor': ragStreaming }">{{ ragAnswer }}</span>
             <span v-for="(c, i) in ragCitations" :key="i" class="citation">📎 {{ c.document_name }}{{ c.section ? ' · ' + c.section : '' }}</span>
           </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- 收藏 / 稍后读 -->
+    <template v-if="tab === 'favorites'">
+      <div v-if="info" class="offline-banner">{{ info }}</div>
+      <div class="grid" style="grid-template-columns: 1fr 1fr">
+        <div class="card">
+          <div class="card-title">{{ $t('library.favTitle') }}</div>
+          <div v-if="favStore.loading" class="loading"><div class="spinner"></div></div>
+          <div v-else-if="favStore.favorites.length === 0" class="empty" style="padding: var(--space-3)">
+            <p class="hint">{{ $t('library.favEmpty') }}</p>
+          </div>
+          <table v-else class="table">
+            <thead>
+              <tr>
+                <th>{{ $t('library.colRefType') }}</th>
+                <th>{{ $t('library.colGroup') }}</th>
+                <th>{{ $t('library.colNote') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="f in favStore.favorites" :key="f.id">
+                <td><span class="badge">{{ $t(refTypeKey(f.ref_type)) }}</span></td>
+                <td class="text-muted">{{ f.group_name || '—' }}</td>
+                <td class="grow">{{ f.note?.slice(0, 40) || '—' }}</td>
+                <td><button class="btn btn-sm btn-ghost" @click="unsave(f)">{{ $t('library.actionUnsave') }}</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="card-title">{{ $t('library.readLaterTitle') }}</div>
+          <div v-if="favStore.readLater.length === 0" class="empty" style="padding: var(--space-3)">
+            <p class="hint">{{ $t('library.readLaterEmpty') }}</p>
+          </div>
+          <table v-else class="table">
+            <thead>
+              <tr>
+                <th>{{ $t('library.colDocument') }}</th>
+                <th>{{ $t('library.colStatus') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="r in favStore.readLater" :key="r.id">
+                <td class="grow">{{ docName(r.document_id) }}</td>
+                <td>
+                  <span class="badge" :class="{
+                    'badge-warning': r.status === 'queued',
+                    'badge-success': r.status === 'read',
+                    'badge-offline': r.status === 'skipped',
+                  }">{{ $t(readLaterStatusKey(r.status)) }}</span>
+                </td>
+                <td>
+                  <div class="flex gap-2">
+                    <button v-if="r.status === 'queued'" class="btn btn-sm btn-success" @click="readLaterAction(r, 'read')">{{ $t('library.readLaterMarkRead') }}</button>
+                    <button v-if="r.status === 'queued'" class="btn btn-sm btn-ghost" @click="readLaterAction(r, 'skip')">{{ $t('library.readLaterSkip') }}</button>
+                    <button v-if="r.status !== 'queued'" class="btn btn-sm btn-ghost" @click="readLaterAction(r, 'requeue')">{{ $t('library.readLaterRequeue') }}</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </template>

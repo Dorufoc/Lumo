@@ -892,3 +892,96 @@ export interface Insight {
   time?: TimeInsight
   trend?: TrendInsight
 }
+
+// ---------- 4.15 收藏 / 稍后读 / 文档摘要（API 设计文档 7.8） ----------
+
+export type FavoriteRefType = 'question' | 'document' | 'agent_message' | 'note'
+export type ReadLaterStatus = 'queued' | 'read' | 'skipped'
+export type ReadLaterAction = 'read' | 'skip' | 'requeue'
+export type SummaryStatus = 'pending' | 'ready' | 'failed'
+
+export interface Favorite {
+  id: string
+  user_id: string
+  ref_type: FavoriteRefType
+  ref_id: string
+  group_name: string
+  note: string
+  version: number
+  favorited: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface FavoritePage {
+  items: Favorite[]
+  next_cursor: string
+  has_more: boolean
+}
+
+export interface FavoriteToggleReq {
+  workspace_id: string
+  user_id: string
+  ref_type: string
+  ref_id: string
+  group_name?: string
+  note?: string
+  version?: number
+}
+
+export interface FavoriteListReq {
+  workspace_id: string
+  user_id: string
+  group_name?: string
+  ref_type?: string
+  keyword?: string
+  cursor?: string
+  limit?: number
+}
+
+export interface ReadLaterItem {
+  id: string
+  workspace_id: string
+  user_id: string
+  document_id: string
+  status: ReadLaterStatus
+  created_at: string
+  updated_at: string
+}
+
+export interface ReadLaterAddReq {
+  workspace_id: string
+  user_id: string
+  document_id: string
+}
+
+export interface ReadLaterTransitionReq {
+  workspace_id: string
+  user_id: string
+  item_id: string
+  action: ReadLaterAction
+}
+
+export interface SummaryPayload {
+  points: string[]
+  structure: string[]
+  terms: string[]
+  note?: string
+}
+
+export interface DocumentSummary {
+  id: string
+  document_id: string
+  summary_json: string | SummaryPayload
+  model: string
+  prompt_version?: string | null
+  status: SummaryStatus
+  created_at: string
+  updated_at: string
+}
+
+export interface DocumentSummarizeReq {
+  workspace_id: string
+  document_id: string
+  idempotency_key: string
+}

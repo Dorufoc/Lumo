@@ -205,6 +205,13 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "ReportExport", a.Svc.Report.ReportExport)
 	bind(srv, "InsightGet", a.Svc.Report.InsightGet)
 
+	// 收藏与稍后读（API 文档 7.8 / 完整设计文档 4.15）
+	bind(srv, "FavoriteToggle", a.Svc.Favorites.FavoriteToggle)
+	bind(srv, "FavoriteList", a.Svc.Favorites.FavoriteList)
+	bind(srv, "ReadLaterAdd", a.Svc.Favorites.ReadLaterAdd)
+	bind(srv, "ReadLaterTransition", a.Svc.Favorites.ReadLaterTransition)
+	bind(srv, "DocumentSummarize", a.Svc.Favorites.DocumentSummarize)
+
 	// 4.8 笔记与标注（API 文档 7.1）
 	bind(srv, "NoteCreate", a.Svc.Note.NoteCreate)
 	bind(srv, "NoteUpdate", a.Svc.Note.NoteUpdate)
