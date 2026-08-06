@@ -304,9 +304,9 @@ func TestTimerStartValidation(t *testing.T) {
 	s.Focus.Now = clock
 
 	cases := []struct {
-		name  string
-		req   TimerStartReq
-		code  domain.ErrorCode
+		name string
+		req  TimerStartReq
+		code domain.ErrorCode
 	}{
 		{"非法模式", TimerStartReq{WorkspaceID: ws.ID, UserID: userID, Mode: "deep", PlannedMinutes: 25, IdempotencyKey: "fm-1"}, domain.CodeInvalidArgument},
 		{"负数时长", TimerStartReq{WorkspaceID: ws.ID, UserID: userID, Mode: domain.TimerModePomodoro, PlannedMinutes: -1, IdempotencyKey: "fm-2"}, domain.CodeInvalidArgument},
