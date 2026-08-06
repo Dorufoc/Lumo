@@ -5,9 +5,19 @@
 import { computed, onMounted, ref } from 'vue'
 import { call, localizedMessageOf } from '@/api/client'
 import QuestionViewer from '@/components/QuestionViewer.vue'
-import type { Assignment, Class, ExamPaper, Question, QuestionPage } from '@/api/types'
+import type {
+  Assignment,
+  AssignmentSubmission,
+  Class,
+  ExamPaper,
+  PracticeResult,
+  Question,
+  QuestionPage,
+  ResultQuestion,
+} from '@/api/types'
 import {
   assignmentCreate,
+  assignmentGrade,
   assignmentList,
   assignmentPublish,
   assignmentSubmissionList,
@@ -29,7 +39,7 @@ const assignments = ref<Assignment[]>([])
 const classes = ref<Class[]>([])
 const papers = ref<ExamPaper[]>([])
 const library = ref<Question[]>([])
-const submissionsByAsg = ref<Record<string, { display_name: string; created_at: string; student_user_id: string }[]>>({})
+const submissionsByAsg = ref<Record<string, AssignmentSubmission[]>>({})
 const expanded = ref<string>('')
 
 const isTeacher = computed(() => session.user?.role === 'teacher')
@@ -182,6 +192,178 @@ function toggleSubmissions(asg: Assignment) {
   void loadSubmissions(asg)
 }
 
+// ---- 教师：批阅 ----
+const gradeTarget = ref<AssignmentSubmission | null>(null)
+const gradeItems = ref<GradeItem[]>([])
+const gradeQuestions = ref<ResultQuestion[]>([])
+const gradeVersion = ref(0)
+const gradeOverall = ref(0)
+const gradeComment = ref('')
+const pregrading = ref(false)
+
+interface GradeItem {
+  question_version_id: string
+  type: string
+  max_score: number
+  score: number
+  comment: string
+  status: string
+}
+
+function gradeJSONVersion(gj: Record<string, unknown> | undefined): number {
+  const v = gj?.version
+  return typeof v === 'number' ? v : 0
+}
+
+function gradeJSONOverall(gj: Record<string, unknown> | undefined): number {
+  const v = gj?.overall
+  return typeof v === 'number' ? v : 0
+}
+
+function gradeJSONItems(gj: Record<string, unknown> | undefined): GradeItem[] {
+  const items = Array.isArray(gj?.items) ? (gj.items as Record<string, unknown>[]) : []
+  return items.map((it) => ({
+    question_version_id: String(it.question_version_id ?? ''),
+    type: String(it.type ?? ''),
+    max_score: typeof it.max_score === 'number' ? it.max_score : 0,
+    score: typeof it.score === 'number' ? it.score : 0,
+    comment: typeof it.comment === 'string' ? it.comment : '',
+    status: String(it.status ?? 'graded'),
+  }))
+}
+
+function answerText(v: unknown): string {
+  if (v == null) return ''
+  if (typeof v === 'string') return v
+  if (Array.isArray(v)) return v.join(', ')
+  return JSON.stringify(v)
+}
+
+function payloadMaxScore(q: ResultQuestion): number {
+  const v = q.payload?.grading_config?.max_score
+  return typeof v === 'number' ? v : 10
+}
+
+function gradeTotalMax(gj: Record<string, unknown> | undefined): number {
+  return gradeJSONItems(gj).reduce((n, it) => n + it.max_score, 0)
+}
+
+async function openGrade(sub: AssignmentSubmission) {
+  error.value = ''
+  info.value = ''
+  gradeTarget.value = sub
+  gradeVersion.value = gradeJSONVersion(sub.grade_json)
+  gradeOverall.value = gradeJSONOverall(sub.grade_json)
+  gradeComment.value = typeof sub.grade_json?.comment === 'string' ? (sub.grade_json.comment as string) : ''
+  gradeItems.value = gradeJSONItems(sub.grade_json)
+  gradeQuestions.value = []
+  // 读取该提交的作答（会话快照含分值；作答经 submissions 对齐）
+  if (sub.session_id) {
+    try {
+      const res = await call<PracticeResult>('PracticeGetResult', {
+        workspace_id: session.workspaceId,
+        session_id: sub.session_id,
+      })
+      gradeQuestions.value = res?.questions ?? []
+      // 未批阅（teacher/hybrid）时以作答初始化待改项（分值默认 10）
+      if (gradeItems.value.length === 0) {
+        gradeItems.value = gradeQuestions.value.map((q) => ({
+          question_version_id: q.question_version_id,
+          type: q.type,
+          max_score: payloadMaxScore(q),
+          score: 0,
+          comment: '',
+          status: 'pending',
+        }))
+        gradeOverall.value = 0
+      }
+    } catch (e) {
+      error.value = localizedMessageOf(e)
+    }
+  }
+}
+
+function gradeItemOf(q: ResultQuestion): GradeItem {
+  const existing = gradeItems.value.find((i) => i.question_version_id === q.question_version_id)
+  if (existing) return existing
+  const created: GradeItem = {
+    question_version_id: q.question_version_id,
+    type: q.type,
+    max_score: payloadMaxScore(q),
+    score: 0,
+    comment: '',
+    status: 'pending',
+  }
+  gradeItems.value.push(created)
+  return created
+}
+
+function recalcOverall() {
+  gradeOverall.value = gradeItems.value.reduce((n, it) => n + (it.score || 0), 0)
+}
+
+async function doPreGrade() {
+  if (!gradeTarget.value) return
+  error.value = ''
+  info.value = ''
+  pregrading.value = true
+  try {
+    const out = await assignmentGrade({
+      workspace_id: session.workspaceId,
+      user_id: session.userId,
+      submission_id: gradeTarget.value.id,
+      version: gradeVersion.value,
+      pre_grade: true,
+    })
+    if (out?.message) info.value = out.message
+  } catch (e) {
+    error.value = localizedMessageOf(e)
+  } finally {
+    pregrading.value = false
+  }
+}
+
+async function saveGrade() {
+  if (!gradeTarget.value) return
+  error.value = ''
+  info.value = ''
+  recalcOverall()
+  const items = gradeItems.value.map((it) => ({
+    question_version_id: it.question_version_id,
+    type: it.type,
+    max_score: it.max_score,
+    score: it.score,
+    status: 'graded',
+    comment: it.comment,
+  }))
+  busy.value = true
+  try {
+    const out = await assignmentGrade({
+      workspace_id: session.workspaceId,
+      user_id: session.userId,
+      submission_id: gradeTarget.value.id,
+      grade_json: { items, overall: gradeOverall.value, comment: gradeComment.value },
+      version: gradeVersion.value,
+    })
+    const asgID = gradeTarget.value.assignment_id
+    gradeTarget.value = null
+    // 刷新名单与列表（回显最新版本）
+    await loadSubmissions({ id: asgID } as Assignment)
+    await load()
+    if (out?.message) info.value = out.message
+  } catch (e) {
+    error.value = localizedMessageOf(e)
+    if (gradeTarget.value) {
+      // 乐观锁冲突：重新读取最新版本号
+      await loadSubmissions({ id: gradeTarget.value.assignment_id } as Assignment)
+      const fresh = submissionsByAsg.value[gradeTarget.value.assignment_id]?.find((s) => s.id === gradeTarget.value?.id)
+      if (fresh) gradeVersion.value = gradeJSONVersion(fresh.grade_json)
+    }
+  } finally {
+    busy.value = false
+  }
+}
+
 // ---- 学生：作答 ----
 const answerTarget = ref<Assignment | null>(null)
 const answerStep = ref(0)
@@ -307,9 +489,13 @@ onMounted(load)
           </div>
 
           <!-- 学生操作 -->
-          <button v-else-if="asg.status === 'published'" class="btn btn-sm btn-primary" @click="openAnswer(asg)">
+          <button v-else-if="asg.status === 'published' && !asg.submission" class="btn btn-sm btn-primary" @click="openAnswer(asg)">
             {{ $t('assignments.submit') }}
           </button>
+          <span v-else-if="asg.submission && asg.submission.graded_at" class="badge badge-success">
+            {{ $t('assignments.graded') }} · {{ gradeJSONOverall(asg.submission.grade_json) }}/{{ gradeTotalMax(asg.submission.grade_json) }}
+          </span>
+          <span v-else-if="asg.submission" class="badge badge-warning">{{ $t('assignments.pendingGrade') }}</span>
           <span v-else class="hint">{{ $t('assignments.statusDraft') }}</span>
         </div>
 
@@ -321,8 +507,12 @@ onMounted(load)
           <div v-else class="submission-list">
             <div v-for="(s, i) in submissionsByAsg[asg.id]" :key="i" class="submission-row">
               <span class="submission-name">{{ s.display_name || s.student_user_id }}</span>
-              <span class="badge badge-success">{{ $t('assignments.submitted') }}</span>
+              <span v-if="s.graded_at" class="badge badge-success">{{ $t('assignments.graded') }}</span>
+              <span v-else class="badge badge-warning">{{ $t('assignments.pendingGrade') }}</span>
               <span class="hint">{{ $t('assignments.submittedAt') }} {{ fmtDue(s.created_at) }}</span>
+              <button class="btn btn-sm btn-primary" :disabled="busy" @click="openGrade(s)">
+                {{ $t('assignments.grade') }}
+              </button>
             </div>
           </div>
         </div>
@@ -436,6 +626,65 @@ onMounted(load)
         </template>
       </div>
     </div>
+
+    <!-- 批阅弹窗（教师） -->
+    <div v-if="gradeTarget" class="modal-mask">
+      <div class="card modal modal-lg">
+        <div class="flex-between mb-3">
+          <h3 style="margin: 0">{{ $t('assignments.gradeTitle') }} · {{ gradeTarget.display_name || gradeTarget.student_user_id }}</h3>
+          <button class="btn btn-sm" @click="gradeTarget = null">{{ $t('common.close') }}</button>
+        </div>
+
+        <div v-if="gradeQuestions.length === 0" class="empty">
+          <p>{{ $t('assignments.gradeNoAnswers') }}</p>
+        </div>
+        <template v-else>
+          <div class="mb-3" style="max-height: 55vh; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-3)">
+            <div v-for="(q, i) in gradeQuestions" :key="q.question_version_id" class="card">
+              <div class="flex-between" style="align-items: flex-start; gap: var(--space-2)">
+                <div class="grade-question-text">
+                  <div class="text-secondary">{{ i + 1 }}. {{ $t('assignments.gradeType', { type: q.type }) }} · {{ gradeItemOf(q).max_score }}{{ $t('assignments.gradeMaxScore') }}</div>
+                  <div class="mt-1">{{ q.payload?.stem || '' }}</div>
+                </div>
+              </div>
+              <div class="hint mt-1">{{ $t('assignments.gradeAnswerLabel') }} {{ answerText(q.submission?.answer) }}</div>
+              <div class="grade-inputs mt-2">
+                <label class="grade-score-field">
+                  <span class="text-secondary">{{ $t('assignments.gradeScore') }}</span>
+                  <input
+                    v-model.number="gradeItemOf(q).score"
+                    class="input input-sm"
+                    type="number"
+                    min="0"
+                    :max="gradeItemOf(q).max_score"
+                    @change="recalcOverall"
+                  />
+                </label>
+                <label class="grade-comment-field">
+                  <span class="text-secondary">{{ $t('assignments.gradeComment') }}</span>
+                  <input v-model="gradeItemOf(q).comment" class="input input-sm" type="text" :placeholder="$t('assignments.gradeCommentPlaceholder')" />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex-between mb-3" style="align-items: center">
+            <div class="flex gap-2" style="align-items: center">
+              <span class="text-secondary">{{ $t('assignments.gradeVersion', { version: gradeVersion }) }}</span>
+              <button class="btn btn-sm" :disabled="pregrading" @click="doPreGrade">
+                {{ pregrading ? $t('common.processing') : $t('assignments.preGrade') }}
+              </button>
+            </div>
+            <div class="flex gap-2" style="align-items: center">
+              <span class="text-secondary">{{ $t('assignments.gradeOverall', { score: gradeOverall }) }}</span>
+              <button class="btn btn-sm btn-primary" :disabled="busy" @click="saveGrade">
+                {{ busy ? $t('common.saving') : $t('assignments.saveGrade') }}
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -520,5 +769,29 @@ onMounted(load)
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+}
+
+.grade-question-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.grade-inputs {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.grade-score-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.grade-comment-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
 }
 </style>

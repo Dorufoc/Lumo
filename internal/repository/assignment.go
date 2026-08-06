@@ -175,3 +175,37 @@ func (r *Repo) CountAssignmentSubmissions(ctx context.Context, assignmentID stri
 	}
 	return n, nil
 }
+
+// GetAssignmentSubmissionByID 按 ID 查询提交记录（批阅入口）。
+func (r *Repo) GetAssignmentSubmissionByID(ctx context.Context, id string) (*AssignmentSubmissionRow, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT `+assignmentSubmissionCols+` FROM assignment_submissions
+		WHERE id = ?`, id)
+	return scanAssignmentSubmission(row)
+}
+
+// UpdateAssignmentGrade 乐观锁更新批阅结果。
+// 版本号内嵌于 grade_json.version；原子比较（空态 '{}' 视为 version=0），
+// 0 rows 时回查区分「不存在 → NOT_FOUND」与「版本过期 → CONFLICT」。
+func (r *Repo) UpdateAssignmentGrade(ctx context.Context, id, gradeJSON string, version int) error {
+	res, err := r.db.ExecContext(ctx, `
+		UPDATE assignment_submissions SET grade_json = ?,
+			graded_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+		WHERE id = ? AND COALESCE(json_extract(grade_json, '$.version'), 0) = ?`,
+		gradeJSON, id, version)
+	if err != nil {
+		return normalizeErr(err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		cur, err := r.GetAssignmentSubmissionByID(ctx, id)
+		if err != nil {
+			return err
+		}
+		if cur == nil {
+			return NotFoundErr("作业提交", id)
+		}
+		return domain.Conflict("作业批阅已被修改，请刷新后重试")
+	}
+	return nil
+}

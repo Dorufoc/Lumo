@@ -216,6 +216,7 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "AssignmentSubmit", a.Svc.Assignments.AssignmentSubmit)
 	bind(srv, "AssignmentList", a.Svc.Assignments.AssignmentList)
 	bind(srv, "AssignmentSubmissionList", a.Svc.Assignments.AssignmentSubmissionList)
+	bind(srv, "AssignmentGrade", a.Svc.Assignments.AssignmentGrade)
 
 	// 提醒与通知（API 文档 7.7 / 完整设计文档 4.14）
 	bind(srv, "ReminderUpsert", a.Svc.Reminder.ReminderUpsert)

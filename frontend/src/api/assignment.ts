@@ -3,6 +3,7 @@ import { call } from '@/api/client'
 import type {
   Assignment,
   AssignmentCreateReq,
+  AssignmentGradeReq,
   AssignmentListReq,
   AssignmentPublishReq,
   AssignmentSubmission,
@@ -33,4 +34,9 @@ export function assignmentList(req: AssignmentListReq): Promise<Assignment[]> {
 /** 作业提交名单（教师）。 */
 export function assignmentSubmissionList(req: AssignmentSubmissionListReq): Promise<AssignmentSubmission[]> {
   return call<AssignmentSubmission[]>('AssignmentSubmissionList', { ...req })
+}
+
+/** 批阅作业（教师，乐观锁；pre_grade=true 时仅 EssayGrader 预批预览）。 */
+export function assignmentGrade(req: AssignmentGradeReq): Promise<AssignmentSubmission> {
+  return call<AssignmentSubmission>('AssignmentGrade', { ...req })
 }

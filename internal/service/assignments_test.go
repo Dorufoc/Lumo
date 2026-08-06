@@ -260,9 +260,10 @@ func TestAssignmentSubmitHappy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("submit: %v", err)
 	}
-	// grade_json 空态
-	if g := assignmentRowGradeJSON(t, s, sub.ID); g != "{}" {
-		t.Fatalf("expected empty grade_json, got %s", g)
+	// grade_json：auto 规则提交即自动判分（version=1，非空态）
+	g := assignmentRowGradeJSON(t, s, sub.ID)
+	if v := gradeJSONVersion(t, g); v != 1 {
+		t.Fatalf("auto 规则提交后 grade_json version 应为 1, got %d (raw=%s)", v, g)
 	}
 	// submission_id 非空（FK 有效）
 	sid := assignmentRowSubmissionID(t, s, sub.ID)

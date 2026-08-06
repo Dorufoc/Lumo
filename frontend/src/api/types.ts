@@ -1221,6 +1221,8 @@ export interface Assignment {
   version: number
   created_at: string
   updated_at: string
+  /** 学生附带本人提交（可见批阅状态/得分）；教师为 undefined。 */
+  submission?: AssignmentSubmission
 }
 
 /** 作业单题作答。 */
@@ -1239,6 +1241,10 @@ export interface AssignmentSubmission {
   grade_json: Record<string, unknown>
   graded_at: string | null
   created_at: string
+  /** 提交所在练习会话（教师批阅时据此取作答）。 */
+  session_id?: string | null
+  /** 预批提示（EssayGrader 降级等），非预批调用为空。 */
+  message?: string
 }
 
 export interface AssignmentCreateReq {
@@ -1276,4 +1282,15 @@ export interface AssignmentSubmissionListReq {
   workspace_id: string
   user_id: string
   assignment_id: string
+}
+
+/** 批阅作业请求（教师，班级创建者）。Version 为 grade_json.version 乐观锁；pre_grade=true 仅预批预览。 */
+export interface AssignmentGradeReq {
+  workspace_id: string
+  user_id: string
+  submission_id: string
+  /** 不含 version 字段（服务端维护版本号）。 */
+  grade_json?: Record<string, unknown>
+  version: number
+  pre_grade?: boolean
 }
