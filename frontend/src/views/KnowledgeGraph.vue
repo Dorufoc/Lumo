@@ -88,11 +88,17 @@ const layout = computed(() => {
 })
 
 // ---------- 掌握度着色 ----------
+// Canvas 2D 无法直接消费 CSS var()：每次绘制时读取已解析的 token 值，主题切换后自动生效。
+function tokenColor(name: string): string {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return v || 'black'
+}
+
 function masteryColor(n: KnowledgeGraphNode): string {
-  if (n.mastery === undefined) return '#9ca3af' // 未学习
-  if (n.mastery >= 0.8) return '#22c55e' // 已掌握
-  if (n.mastery >= 0.4) return '#f59e0b' // 学习中
-  return '#ef4444' // 薄弱
+  if (n.mastery === undefined) return tokenColor('--color-disabled') // 未学习
+  if (n.mastery >= 0.8) return tokenColor('--color-success') // 已掌握
+  if (n.mastery >= 0.4) return tokenColor('--color-warning') // 学习中
+  return tokenColor('--color-error') // 薄弱
 }
 
 function masteryText(n: KnowledgeGraphNode): string {
@@ -134,12 +140,14 @@ function draw() {
     const a = pos.get(e.from)
     const b = pos.get(e.to)
     if (!a || !b) continue
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.55)'
+    ctx.globalAlpha = 0.55
+    ctx.strokeStyle = tokenColor('--border')
     ctx.lineWidth = 1.5 / t.scale
     ctx.beginPath()
     ctx.moveTo(a.x, a.y)
     ctx.quadraticCurveTo((a.x + b.x) / 2, (a.y + b.y) / 2 + 26 / t.scale, b.x, b.y)
     ctx.stroke()
+    ctx.globalAlpha = 1
   }
 
   // 节点
@@ -158,25 +166,33 @@ function draw() {
     ctx.fillStyle = masteryColor(n)
     ctx.fill()
     ctx.lineWidth = (isHover || isSel || isHighlight ? 3 : 1.5) / t.scale
-    ctx.strokeStyle = isHighlight ? '#6366f1' : isHover || isSel ? '#111827' : 'rgba(0, 0, 0, 0.25)'
+    ctx.strokeStyle = isHighlight
+      ? tokenColor('--color-primary')
+      : isHover || isSel
+        ? tokenColor('--text')
+        : tokenColor('--border-strong')
+    if (!isHighlight && !isHover && !isSel) ctx.globalAlpha = alpha * 0.4
     ctx.stroke()
+    ctx.globalAlpha = alpha
     if (isHighlight) {
       ctx.beginPath()
       ctx.arc(p.x, p.y, NODE_R + 4 / t.scale, 0, Math.PI * 2)
-      ctx.strokeStyle = 'rgba(99, 102, 241, 0.55)'
+      ctx.globalAlpha = alpha * 0.55
+      ctx.strokeStyle = tokenColor('--color-primary')
       ctx.lineWidth = 2 / t.scale
       ctx.stroke()
+      ctx.globalAlpha = alpha
     }
     const label = masteryText(n)
     if (label) {
-      ctx.fillStyle = '#ffffff'
+      ctx.fillStyle = tokenColor('--on-accent')
       ctx.font = `600 ${11 / t.scale}px sans-serif`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillText(label, p.x, p.y + 1)
     }
     ctx.globalAlpha = alpha
-    ctx.fillStyle = '#374151'
+    ctx.fillStyle = tokenColor('--text-secondary')
     ctx.font = `500 ${12 / t.scale}px sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
@@ -436,10 +452,10 @@ onBeforeUnmount(() => {
         {{ matchedCount }} {{ $t('knowledgeGraph.matchCount') }}
       </span>
       <span class="legend">
-        <span class="legend-item"><span class="dot" style="background: #22c55e"></span>{{ $t('knowledgeGraph.legendMastered') }}</span>
-        <span class="legend-item"><span class="dot" style="background: #f59e0b"></span>{{ $t('knowledgeGraph.legendLearning') }}</span>
-        <span class="legend-item"><span class="dot" style="background: #ef4444"></span>{{ $t('knowledgeGraph.legendWeak') }}</span>
-        <span class="legend-item"><span class="dot" style="background: #9ca3af"></span>{{ $t('knowledgeGraph.legendUnlearned') }}</span>
+        <span class="legend-item"><span class="dot dot-mastered"></span>{{ $t('knowledgeGraph.legendMastered') }}</span>
+        <span class="legend-item"><span class="dot dot-learning"></span>{{ $t('knowledgeGraph.legendLearning') }}</span>
+        <span class="legend-item"><span class="dot dot-weak"></span>{{ $t('knowledgeGraph.legendWeak') }}</span>
+        <span class="legend-item"><span class="dot dot-unlearned"></span>{{ $t('knowledgeGraph.legendUnlearned') }}</span>
       </span>
     </div>
 
@@ -570,6 +586,22 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
+.dot-mastered {
+  background: var(--color-success);
+}
+
+.dot-learning {
+  background: var(--color-warning);
+}
+
+.dot-weak {
+  background: var(--color-error);
+}
+
+.dot-unlearned {
+  background: var(--color-disabled);
+}
+
 .canvas-shell {
   position: relative;
   border: 1px solid var(--border);
@@ -647,7 +679,7 @@ onBeforeUnmount(() => {
   padding: var(--space-3);
   overflow-y: auto;
   z-index: 40;
-  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-md);
 }
 
 .detail-head {
