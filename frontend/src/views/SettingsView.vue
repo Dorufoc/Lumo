@@ -17,28 +17,34 @@ const info = ref('')
 // ---------- 模型配置 ----------
 const llm = ref({ kind: 'openai', base_url: '', api_key: '', model: 'gpt-4o-mini', enabled: false })
 const embedding = ref({ kind: 'openai', base_url: '', api_key: '', model: 'text-embedding-3-small', enabled: false })
+const tts = ref({ kind: 'openai', base_url: '', api_key: '', model: 'tts-1', enabled: false })
+const asr = ref({ kind: 'openai', base_url: '', api_key: '', model: 'whisper-1', enabled: false })
+type ProviderName = 'llm' | 'embedding' | 'tts' | 'asr'
 const testing = ref<string | null>(null)
 const testResult = ref<Record<string, string>>({})
+
+function applyProviderState(target: { enabled: boolean; model: string }, cfg?: { configured?: boolean; model?: string }) {
+  if (cfg?.configured) {
+    target.enabled = true
+    if (cfg.model) target.model = cfg.model
+  }
+}
 
 async function loadSettings() {
   try {
     const st = await call<Settings>('SettingsGet', { workspace_id: session.workspaceId })
     session.settings = st
     const ps = st.provider_status
-    if (ps.llm?.configured) {
-      llm.value.enabled = true
-      if (ps.llm.model) llm.value.model = ps.llm.model
-    }
-    if (ps.embedding?.configured) {
-      embedding.value.enabled = true
-      if (ps.embedding.model) embedding.value.model = ps.embedding.model
-    }
+    applyProviderState(llm.value, ps.llm)
+    applyProviderState(embedding.value, ps.embedding)
+    applyProviderState(tts.value, ps.tts)
+    applyProviderState(asr.value, ps.asr)
   } catch (e) {
     error.value = localizedMessageOf(e)
   }
 }
 
-async function saveProvider(provider: 'llm' | 'embedding', cfg: typeof llm.value) {
+async function saveProvider(provider: ProviderName, cfg: typeof llm.value) {
   error.value = ''
   info.value = ''
   try {
@@ -53,13 +59,19 @@ async function saveProvider(provider: 'llm' | 'embedding', cfg: typeof llm.value
     })
     session.settings = st
     cfg.api_key = ''
-    info.value = provider === 'llm' ? i18n.t('settings.llmSaved') : i18n.t('settings.embeddingSaved')
+    const key: Record<ProviderName, string> = {
+      llm: 'settings.llmSaved',
+      embedding: 'settings.embeddingSaved',
+      tts: 'settings.ttsSaved',
+      asr: 'settings.asrSaved',
+    }
+    info.value = i18n.t(key[provider])
   } catch (e) {
     error.value = localizedMessageOf(e)
   }
 }
 
-async function testProvider(provider: 'llm' | 'embedding') {
+async function testProvider(provider: ProviderName) {
   testing.value = provider
   error.value = ''
   try {
@@ -367,6 +379,86 @@ onMounted(() => {
         </div>
         <div v-if="testResult.embedding" class="hint mt-2">{{ testResult.embedding }}</div>
         <div class="hint mt-2">{{ $t('settings.secretsHint') }}</div>
+      </div>
+
+      <div class="card">
+        <div class="flex-between mb-3">
+          <div class="card-title" style="margin: 0">{{ $t('settings.ttsTitle') }}</div>
+          <span class="badge" :class="tts.enabled ? 'badge-success' : 'badge-offline'">
+            {{ tts.enabled ? $t('settings.configured') : $t('settings.notConfigured') }}
+          </span>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label>{{ $t('settings.type') }}</label>
+            <select v-model="tts.kind" class="select">
+              <option value="openai">{{ $t('settings.openaiCompat') }}</option>
+              <option value="mock">{{ $t('settings.localMock') }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Base URL</label>
+            <input v-model="tts.base_url" class="input" :placeholder="$t('settings.baseUrlPlaceholder')" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label>{{ $t('settings.modelName') }}</label>
+            <input v-model="tts.model" class="input" placeholder="tts-1" />
+          </div>
+          <div class="field">
+            <label>{{ $t('settings.apiKeyLabel') }}</label>
+            <input v-model="tts.api_key" type="password" class="input" placeholder="sk-…" />
+          </div>
+        </div>
+        <div v-if="tts.kind === 'mock'" class="hint mb-2">{{ $t('settings.mockNoKeyHint') }}</div>
+        <div class="flex gap-2" style="justify-content: flex-end">
+          <button class="btn" :disabled="testing === 'tts'" @click="testProvider('tts')">
+            {{ testing === 'tts' ? $t('settings.testing') : $t('settings.test') }}
+          </button>
+          <button class="btn btn-primary" @click="saveProvider('tts', tts)">{{ $t('common.save') }}</button>
+        </div>
+        <div v-if="testResult.tts" class="hint mt-2">{{ testResult.tts }}</div>
+      </div>
+
+      <div class="card">
+        <div class="flex-between mb-3">
+          <div class="card-title" style="margin: 0">{{ $t('settings.asrTitle') }}</div>
+          <span class="badge" :class="asr.enabled ? 'badge-success' : 'badge-offline'">
+            {{ asr.enabled ? $t('settings.configured') : $t('settings.notConfigured') }}
+          </span>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label>{{ $t('settings.type') }}</label>
+            <select v-model="asr.kind" class="select">
+              <option value="openai">{{ $t('settings.openaiCompat') }}</option>
+              <option value="mock">{{ $t('settings.localMock') }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Base URL</label>
+            <input v-model="asr.base_url" class="input" :placeholder="$t('settings.baseUrlPlaceholder')" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label>{{ $t('settings.modelName') }}</label>
+            <input v-model="asr.model" class="input" placeholder="whisper-1" />
+          </div>
+          <div class="field">
+            <label>{{ $t('settings.apiKeyLabel') }}</label>
+            <input v-model="asr.api_key" type="password" class="input" placeholder="sk-…" />
+          </div>
+        </div>
+        <div v-if="asr.kind === 'mock'" class="hint mb-2">{{ $t('settings.mockNoKeyHint') }}</div>
+        <div class="flex gap-2" style="justify-content: flex-end">
+          <button class="btn" :disabled="testing === 'asr'" @click="testProvider('asr')">
+            {{ testing === 'asr' ? $t('settings.testing') : $t('settings.test') }}
+          </button>
+          <button class="btn btn-primary" @click="saveProvider('asr', asr)">{{ $t('common.save') }}</button>
+        </div>
+        <div v-if="testResult.asr" class="hint mt-2">{{ testResult.asr }}</div>
       </div>
     </template>
 

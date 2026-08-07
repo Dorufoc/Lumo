@@ -314,6 +314,12 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "DocumentDelete", a.Svc.Document.DocumentDelete)
 	bind(srv, "RAGAsk", a.Svc.Document.RAGAsk)
 
+	// 口语练习 Speaking/TTS（API 文档 7.16 / 完整设计文档 4.18）
+	bind(srv, "TTSPlay", a.Svc.Speech.TTSPlay)
+	bind(srv, "SpeakingSubmit", a.Svc.Speech.SpeakingSubmit)
+	bind(srv, "SpeakingResultGet", a.Svc.Speech.SpeakingResultGet)
+	srv.RegisterUpload("SpeakingUpload", a.handleSpeakingUpload)
+
 	// P4 同步（本地模拟服务端）
 	bind(srv, "SyncDeviceRegister", a.Svc.Sync.SyncDeviceRegister)
 	bind(srv, "SyncPush", a.Svc.Sync.SyncPushLocal)
@@ -404,6 +410,41 @@ func (a *App) handleLibraryUpload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	result, err := a.Svc.Import.UploadFile(header.Filename, content)
+	if err != nil {
+		apphttp.WriteErrorJSON(w, apphttp.EnvelopeError(err, rid))
+		return
+	}
+	apphttp.WriteJSON(w, http.StatusOK, apphttp.Envelope(result, rid))
+}
+
+// handleSpeakingUpload 处理 multipart 口语录音上传（保存到 uploads 目录，返回相对路径）。
+func (a *App) handleSpeakingUpload(w http.ResponseWriter, r *http.Request) {
+	rid := r.Header.Get("X-Request-ID")
+	if rid == "" {
+		rid = service.NewID()
+	}
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		apphttp.WriteErrorJSON(w, apphttp.EnvelopeError(domain.InvalidArg("上传解析失败: %v", err), rid))
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		apphttp.WriteErrorJSON(w, apphttp.EnvelopeError(domain.InvalidArg("缺少 file 字段"), rid))
+		return
+	}
+	defer file.Close()
+	content, err := io.ReadAll(file)
+	if err != nil {
+		apphttp.WriteErrorJSON(w, apphttp.EnvelopeError(domain.InvalidArg("读取文件失败: %v", err), rid))
+		return
+	}
+	if uid := r.FormValue("user_id"); uid != "" {
+		if err := a.Svc.AssertUserActive(r.Context(), uid); err != nil {
+			apphttp.WriteErrorJSON(w, apphttp.EnvelopeError(err, rid))
+			return
+		}
+	}
+	result, err := a.Svc.Speech.SaveAudio(header.Filename, content)
 	if err != nil {
 		apphttp.WriteErrorJSON(w, apphttp.EnvelopeError(err, rid))
 		return

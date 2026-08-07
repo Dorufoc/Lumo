@@ -10,10 +10,10 @@ import (
 
 // Settings 是设置 DTO：非敏感配置 + Provider 配置状态。
 type Settings struct {
-	WorkspaceID    string                     `json:"workspace_id"`
-	Settings       json.RawMessage            `json:"settings"`
-	ProviderStatus map[string]ProviderStatus  `json:"provider_status"`
-	Version        int                        `json:"version"`
+	WorkspaceID    string                    `json:"workspace_id"`
+	Settings       json.RawMessage           `json:"settings"`
+	ProviderStatus map[string]ProviderStatus `json:"provider_status"`
+	Version        int                       `json:"version"`
 }
 
 // ProviderStatus 描述 Provider 配置状态（不返回密钥）。
@@ -93,7 +93,7 @@ func (s *Services) providerStatus() (map[string]ProviderStatus, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, name := range []string{"llm", "embedding"} {
+	for _, name := range []string{"llm", "embedding", "tts", "asr"} {
 		v, ok := b["provider_"+name]
 		if !ok {
 			continue
@@ -103,6 +103,9 @@ func (s *Services) providerStatus() (map[string]ProviderStatus, error) {
 			continue
 		}
 		st := ProviderStatus{Configured: m["api_key"] != nil && m["api_key"] != ""}
+		if kind, ok := m["kind"].(string); ok && kind == "mock" {
+			st.Configured = true // mock 无需密钥即视为已配置
+		}
 		if model, ok := m["model"].(string); ok {
 			st.Model = model
 		}

@@ -151,6 +151,8 @@ export interface StreamHandlers {
   onTool?: (tool: { tool_name: string; status: string; safe_summary: string }) => void
   onCompleted?: (meta: { message_id: string; request_id: string; session_id: string; sequence_no: number }) => void
   onError?: (err: ApiError, meta: { request_id: string; session_id: string }) => void
+  /** 用户级领域事件：口语/简答等异步评分完成（grading:updated）。 */
+  onGradingUpdated?: (data: { grading_id: string; submission_id?: string; status: string; score?: number | null }) => void
 }
 
 /** 打开 SSE 流：GET /api/v1/events?request_id=...&session_id=... 或 ?user_id=...
@@ -192,6 +194,14 @@ export function openEventStream(
           { code: String((data.error as { code?: string })?.code ?? 'UNKNOWN'), message: String((data.error as { message?: string })?.message ?? t('error.unknown')), retryable: true },
           meta,
         )
+        break
+      case 'grading:updated':
+        handlers.onGradingUpdated?.({
+          grading_id: String(data.grading_id ?? ''),
+          submission_id: data.submission_id !== undefined ? String(data.submission_id) : undefined,
+          status: String(data.status ?? ''),
+          score: typeof data.score === 'number' ? data.score : null,
+        })
         break
     }
   }

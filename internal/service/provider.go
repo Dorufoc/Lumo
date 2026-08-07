@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"time"
 
 	"lumo/internal/domain"
@@ -20,13 +21,13 @@ type ProviderHealth struct {
 
 // ProviderConfigureReq 配置 Provider 请求。
 type ProviderConfigureReq struct {
-	WorkspaceID string         `json:"workspace_id"`
-	Provider    string         `json:"provider"` // llm | embedding
-	BaseURL     string         `json:"base_url"`
-	APIKey      string         `json:"api_key"`
-	Model       string         `json:"model"`
-	Kind        string         `json:"kind"` // openai | mock
-	Enabled     bool           `json:"enabled"`
+	WorkspaceID string `json:"workspace_id"`
+	Provider    string `json:"provider"` // llm | embedding | tts | asr
+	BaseURL     string `json:"base_url"`
+	APIKey      string `json:"api_key"`
+	Model       string `json:"model"`
+	Kind        string `json:"kind"` // openai | mock
+	Enabled     bool   `json:"enabled"`
 }
 
 // ProviderConfigure 写入 Provider 配置（密钥存本地 secrets 文件，不回读）。
@@ -34,8 +35,8 @@ func (s *Services) ProviderConfigure(ctx context.Context, req ProviderConfigureR
 	if err := s.assertWorkspace(ctx, req.WorkspaceID); err != nil {
 		return nil, err
 	}
-	if req.Provider != "llm" && req.Provider != "embedding" {
-		return nil, domain.InvalidArg("provider 仅允许 llm/embedding")
+	if !isSupportedProvider(req.Provider) {
+		return nil, domain.InvalidArg("provider 仅允许 llm/embedding/tts/asr")
 	}
 	kind := req.Kind
 	if kind == "" {
@@ -86,7 +87,7 @@ func (s *Services) ProviderConfigure(ctx context.Context, req ProviderConfigureR
 // ProviderTestReq 测试 Provider 请求。
 type ProviderTestReq struct {
 	WorkspaceID string `json:"workspace_id"`
-	Provider    string `json:"provider"` // llm | embedding
+	Provider    string `json:"provider"` // llm | embedding | tts | asr
 	Model       string `json:"model"`
 }
 
@@ -95,10 +96,14 @@ func (s *Services) ProviderTest(ctx context.Context, req ProviderTestReq) (*Prov
 	if err := s.assertWorkspace(ctx, req.WorkspaceID); err != nil {
 		return nil, err
 	}
-	if req.Provider != "llm" && req.Provider != "embedding" {
-		return nil, domain.InvalidArg("provider 仅允许 llm/embedding")
+	if !isSupportedProvider(req.Provider) {
+		return nil, domain.InvalidArg("provider 仅允许 llm/embedding/tts/asr")
 	}
 	cfg, ok := s.providerConfig(req.Provider)
+	if req.Provider == "tts" || req.Provider == "asr" {
+		// tts/asr 的 mock Provider 无需 api_key 即视为已配置
+		cfg, ok = s.speechProviderConfig(req.Provider)
+	}
 	if !ok {
 		return nil, domain.InvalidState("Provider 未配置，请先配置")
 	}
@@ -110,7 +115,8 @@ func (s *Services) ProviderTest(ctx context.Context, req ProviderTestReq) (*Prov
 		cfg["model"] = req.Model
 	}
 	start := time.Now()
-	if req.Provider == "llm" {
+	switch req.Provider {
+	case "llm":
 		p, err := provider.NewLLM(kind, cfg)
 		if err != nil {
 			return nil, domain.InvalidArg("%v", err)
@@ -119,12 +125,43 @@ func (s *Services) ProviderTest(ctx context.Context, req ProviderTestReq) (*Prov
 		if err != nil {
 			return &ProviderHealth{OK: false, Provider: req.Provider, Model: modelOf(cfg), LatencyMs: time.Since(start).Milliseconds(), Error: err.Error()}, nil
 		}
-	} else {
+	case "embedding":
 		p, err := provider.NewEmbedding(kind, cfg)
 		if err != nil {
 			return nil, domain.InvalidArg("%v", err)
 		}
 		_, err = p.Embed(ctx, []string{"ping"})
+		if err != nil {
+			return &ProviderHealth{OK: false, Provider: req.Provider, Model: modelOf(cfg), LatencyMs: time.Since(start).Milliseconds(), Error: err.Error()}, nil
+		}
+	case "tts":
+		p, err := provider.NewTTS("tts-"+kind, cfg)
+		if err != nil {
+			return nil, domain.InvalidArg("%v", err)
+		}
+		_, _, err = p.Synthesize(ctx, "ping", 1.0)
+		if err != nil {
+			return &ProviderHealth{OK: false, Provider: req.Provider, Model: modelOf(cfg), LatencyMs: time.Since(start).Milliseconds(), Error: err.Error()}, nil
+		}
+	case "asr":
+		p, err := provider.NewASR("asr-"+kind, cfg)
+		if err != nil {
+			return nil, domain.InvalidArg("%v", err)
+		}
+		probe, _, _ := (&provider.MockTTS{}).Synthesize(ctx, "ping", 1.0)
+		tmp, err := os.CreateTemp("", "lumo-asr-probe-*.wav")
+		if err != nil {
+			return nil, domain.InvalidState("创建探测音频失败: %v", err)
+		}
+		tmpPath := tmp.Name()
+		if _, err := tmp.Write(probe); err != nil {
+			tmp.Close()
+			_ = os.Remove(tmpPath)
+			return nil, domain.InvalidState("写入探测音频失败: %v", err)
+		}
+		tmp.Close()
+		defer os.Remove(tmpPath)
+		_, err = p.Transcribe(ctx, tmpPath)
 		if err != nil {
 			return &ProviderHealth{OK: false, Provider: req.Provider, Model: modelOf(cfg), LatencyMs: time.Since(start).Milliseconds(), Error: err.Error()}, nil
 		}
@@ -143,14 +180,23 @@ func (s *Services) ProviderClear(ctx context.Context, req ProviderClearReq) (map
 	if err := s.assertWorkspace(ctx, req.WorkspaceID); err != nil {
 		return nil, err
 	}
-	if req.Provider != "llm" && req.Provider != "embedding" {
-		return nil, domain.InvalidArg("provider 仅允许 llm/embedding")
+	if !isSupportedProvider(req.Provider) {
+		return nil, domain.InvalidArg("provider 仅允许 llm/embedding/tts/asr")
 	}
 	if err := s.clearProviderConfig(req.Provider); err != nil {
 		return nil, err
 	}
 	s.audit(ctx, req.WorkspaceID, "provider.clear", "provider", req.Provider, nil)
 	return s.providerStatus()
+}
+
+// isSupportedProvider 判断是否受支持的 Provider 类型（llm/embedding/tts/asr）。
+func isSupportedProvider(p string) bool {
+	switch p {
+	case "llm", "embedding", "tts", "asr":
+		return true
+	}
+	return false
 }
 
 func modelOf(cfg map[string]any) string {

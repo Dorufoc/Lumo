@@ -16,6 +16,7 @@ const router = createRouter({
     { path: '/focus', name: 'focus', component: () => import('@/views/FocusView.vue'), meta: { title: '专注' } },
     { path: '/notifications', name: 'notifications', component: () => import('@/views/NotificationsView.vue'), meta: { title: '通知' } },
     { path: '/health', name: 'health', component: () => import('@/views/HealthView.vue'), meta: { title: '健康' } },
+    { path: '/speaking', name: 'speaking', component: () => import('@/views/SpeakingView.vue'), meta: { title: '口语练习' } },
     { path: '/reports', name: 'reports', component: () => import('@/views/ReportsView.vue'), meta: { title: '报告' } },
     { path: '/plan', name: 'plan', component: () => import('@/views/PlanView.vue'), meta: { title: '计划' } },
     { path: '/calendar', name: 'calendar', component: () => import('@/views/CalendarView.vue'), meta: { title: '日历' } },

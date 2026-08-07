@@ -1826,4 +1826,63 @@ export interface WebhookListReq {
   workspace_id: string
 }
 
+// ── 口语练习与语音合成 Speaking/TTS（API 文档 7.16 / 完整设计文档 4.18） ──
+
+/** 文件上传结果（SpeakingUpload 等返回；path 相对 uploads 目录）。 */
+export interface UploadedFile {
+  path: string
+  file_name: string
+  size: number
+  sha256: string
+}
+
+/** 语音合成结果（音频经 /api/v1/files?path=... 下载）。 */
+export interface TTSResult {
+  audio_path: string
+  format: string // wav | mp3 | m4a
+  duration_ms: number
+}
+
+export interface TTSPlayReq {
+  workspace_id: string
+  /** question | note | flashcard | document */
+  ref_type: string
+  ref_id: string
+  /** 0.5–2.0，缺省 1.0 */
+  speed?: number
+}
+
+/** 口语分维度评分（0–10）。 */
+export interface SpeakingScores {
+  pronunciation: number
+  fluency: number
+  completeness: number
+  grammar: number
+}
+
+/** 口语测评结果。 */
+export interface SpeakingResult {
+  id: string
+  submission_id: string
+  transcript: string
+  scores: SpeakingScores
+  /** pending | graded | failed */
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export interface SpeakingSubmitReq {
+  workspace_id: string
+  submission_id: string
+  /** SpeakingUpload 返回的相对 uploads 路径 */
+  audio_path: string
+  idempotency_key: string
+}
+
+export interface SpeakingResultGetReq {
+  workspace_id: string
+  submission_id: string
+}
+
 
