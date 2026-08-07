@@ -1708,4 +1708,66 @@ export interface ShareResolveResult {
   download_path: string
 }
 
+// ── 插件 Plugins（API 文档 7.13 / 完整设计文档 4.24） ──
+
+/** 插件清单（manifest.json 解析结果，api_version 固定 "1"）。 */
+export interface PluginManifest {
+  name: string
+  version: string
+  description?: string
+  entrypoint: string[]
+  /** manifest 声明的全部权限（KnownPermissions）。 */
+  permissions: string[]
+  api_version: string
+}
+
+/** 插件 DTO（全局资源，无 workspace_id；permissions = 用户已确认的权限）。 */
+export interface Plugin {
+  id: string
+  name: string
+  version: string
+  manifest: PluginManifest
+  enabled: boolean
+  permissions: string[]
+  installed_at: string
+  updated_at: string
+}
+
+export interface PluginInstallReq {
+  /** 插件包路径：目录（读取 <dir>/manifest.json）或单个 manifest 文件。 */
+  path: string
+  /** 64 字节 Ed25519 签名的十六进制串（覆盖 manifest 原始字节）。 */
+  signature: string
+}
+
+export interface PluginSetEnabledReq {
+  plugin_id: string
+  enabled: boolean
+}
+
+export interface PluginUninstallReq {
+  plugin_id: string
+}
+
+export interface PluginConfirmPermissionsReq {
+  plugin_id: string
+  /** 须为 manifest 已声明权限的子集。 */
+  permissions: string[]
+}
+
+export interface PluginInvokeReq {
+  plugin_id: string
+  /** 缺省 "run"。 */
+  method?: string
+  /** 任意 JSON 参数（透传 stdin JSON-RPC params）。 */
+  params?: unknown
+}
+
+/** 插件运行结果：ok=false = 插件自身失败（error 为 stderr 诊断，非服务错误）。 */
+export interface PluginInvokeResult {
+  ok: boolean
+  result?: unknown
+  error?: string
+}
+
 

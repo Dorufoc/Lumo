@@ -320,6 +320,14 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "SyncPull", a.Svc.Sync.SyncPull)
 	bind(srv, "SyncStatusGet", a.Svc.Sync.SyncStatusGet)
 
+	// 插件（API 文档 7.13 / 完整设计文档 4.24）
+	bind(srv, "PluginInstall", a.Svc.Plugins.PluginInstall)
+	bind(srv, "PluginSetEnabled", a.Svc.Plugins.PluginSetEnabled)
+	bind(srv, "PluginUninstall", a.Svc.Plugins.PluginUninstall)
+	bind(srv, "PluginConfirmPermissions", a.Svc.Plugins.PluginConfirmPermissions)
+	bind(srv, "PluginInvoke", a.Svc.Plugins.PluginInvoke)
+	bind0(srv, "PluginList", a.Svc.Plugins.PluginList)
+
 	// AI 流式事件（GET /api/v1/events）
 	srv.RegisterSSE(a.Agent.Events)
 	srv.RegisterUserSSE(a.Agent.UserEvents)
