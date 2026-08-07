@@ -37,12 +37,12 @@ const statusText = (s: string): string => {
 }
 const refTypeText = (t: string): string => {
   const map: Record<string, string> = {
-    question: '题目',
-    answer: '回答',
-    comment: '评论',
-    document: '资料',
+    question: 'admin.refTypeQuestion',
+    answer: 'admin.refTypeAnswer',
+    comment: 'admin.refTypeComment',
+    document: 'admin.refTypeDocument',
   }
-  return map[t] ?? t
+  return i18n.t(map[t] ?? t)
 }
 
 async function loadReview() {
