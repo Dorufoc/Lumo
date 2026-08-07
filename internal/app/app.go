@@ -42,6 +42,7 @@ func New(cfg *config.Config, db *sql.DB) *App {
 	// 无法到达 SSE 订阅者。这里以服务层实例为准，agent 内部新建的实例被替换丢弃。
 	a.Agent.UserEvents = a.Svc.UserEvents
 	// Agent LLM 工厂：读取 secrets 配置（未配置返回 ErrNotConfigured）。
+	// 回退兜底：主模型不可用 → mock 确定性模板，不阻塞本地学习闭环。
 	a.Agent.LLMFactory = func() (provider.LLMProvider, error) {
 		c, ok := a.Svc.ProviderConfigOf("llm")
 		if !ok {
@@ -51,7 +52,7 @@ func New(cfg *config.Config, db *sql.DB) *App {
 		if kind == "" {
 			kind = "openai"
 		}
-		return provider.NewLLM(kind, c)
+		return buildLLMFallback(kind, c)
 	}
 	// Agent 发送前门禁：家长关闭 AI → FEATURE_DISABLED（Tutor/RAG 等 AI 入口统一生效）。
 	a.Agent.BeforeChat = func(ctx context.Context, session *repository.AgentSessionRow) error {
@@ -61,6 +62,7 @@ func New(cfg *config.Config, db *sql.DB) *App {
 	a.Svc.Grader = &agent.GradeSubmission{Repo: repo, Agent: a.Agent}
 	a.Svc.Agent = a.Agent
 	// Embedding 工厂：读取 secrets 配置（未配置返回 ErrNotConfigured）。
+	// 回退兜底：主向量模型不可用 → mock 确定性哈希向量。
 	a.Svc.EmbeddingFactory = func() (provider.EmbeddingProvider, error) {
 		c, ok := a.Svc.ProviderConfigOf("embedding")
 		if !ok {
@@ -70,7 +72,7 @@ func New(cfg *config.Config, db *sql.DB) *App {
 		if kind == "" {
 			kind = "openai"
 		}
-		return provider.NewEmbedding(kind, c)
+		return buildEmbeddingFallback(kind, c)
 	}
 	// 注入数据库替换回调（备份恢复用）：关闭旧连接 → 替换文件 → 打开新连接 → 迁移。
 	a.Svc.SwapDB = func(newPath string) (*sql.DB, error) {
@@ -480,4 +482,41 @@ func bindBody(body map[string]json.RawMessage, v any) error {
 		return domain.InvalidArg("请求体解析失败: %v", err)
 	}
 	return nil
+}
+
+// buildLLMFallback 装配 LLM 回退链：主模型（openai/local）→ mock 确定性模板。
+// 主模型不可用时自动回退 mock，保证 AI 功能不因端点故障中断（前端 ProviderTest 提示）。
+func buildLLMFallback(kind string, c map[string]any) (provider.LLMProvider, error) {
+	primary, err := provider.NewLLM(kind, c)
+	if err != nil {
+		return nil, err
+	}
+	if kind == "mock" {
+		return primary, nil // mock 自身即兜底，无需再包装
+	}
+	fallback, err := provider.NewLLM("mock", nil)
+	if err != nil {
+		return primary, nil
+	}
+	return &provider.FallbackLLM{Primary: primary, Fallback: fallback}, nil
+}
+
+// buildEmbeddingFallback 装配 Embedding 回退链：主向量模型 → mock 确定性哈希向量。
+// 注册名约定与 TTS/ASR 一致：kind 需加 "embedding-" 前缀。
+func buildEmbeddingFallback(kind string, c map[string]any) (provider.EmbeddingProvider, error) {
+	if kind != "" {
+		kind = "embedding-" + kind
+	}
+	primary, err := provider.NewEmbedding(kind, c)
+	if err != nil {
+		return nil, err
+	}
+	if kind == "embedding-mock" {
+		return primary, nil
+	}
+	fallback, err := provider.NewEmbedding("embedding-mock", nil)
+	if err != nil {
+		return primary, nil
+	}
+	return &provider.FallbackEmbedding{Primary: primary, Fallback: fallback}, nil
 }

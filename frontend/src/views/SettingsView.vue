@@ -314,12 +314,17 @@ onMounted(() => {
             <label>{{ $t('settings.type') }}</label>
             <select v-model="llm.kind" class="select">
               <option value="openai">{{ $t('settings.openaiCompat') }}</option>
+              <option value="local">{{ $t('settings.localModel') }}</option>
               <option value="mock">{{ $t('settings.localMock') }}</option>
             </select>
           </div>
           <div class="field">
             <label>Base URL</label>
-            <input v-model="llm.base_url" class="input" :placeholder="$t('settings.baseUrlPlaceholder')" />
+            <input
+              v-model="llm.base_url"
+              class="input"
+              :placeholder="llm.kind === 'local' ? $t('settings.localUrlPlaceholder') : $t('settings.baseUrlPlaceholder')"
+            />
           </div>
         </div>
         <div class="form-row">
@@ -327,11 +332,12 @@ onMounted(() => {
             <label>{{ $t('settings.modelName') }}</label>
             <input v-model="llm.model" class="input" placeholder="gpt-4o-mini" />
           </div>
-          <div class="field">
+          <div v-if="llm.kind !== 'local'" class="field">
             <label>{{ $t('settings.apiKeyLabel') }}</label>
             <input v-model="llm.api_key" type="password" class="input" placeholder="sk-…" />
           </div>
         </div>
+        <div v-if="llm.kind === 'local'" class="hint mb-2">{{ $t('settings.localNoKeyHint') }}</div>
         <div class="flex gap-2" style="justify-content: flex-end">
           <button class="btn" :disabled="testing === 'llm'" @click="testProvider('llm')">
             {{ testing === 'llm' ? $t('settings.testing') : $t('settings.test') }}
@@ -353,12 +359,17 @@ onMounted(() => {
             <label>{{ $t('settings.type') }}</label>
             <select v-model="embedding.kind" class="select">
               <option value="openai">{{ $t('settings.openaiCompat') }}</option>
+              <option value="local">{{ $t('settings.localModel') }}</option>
               <option value="mock">{{ $t('settings.localMock') }}</option>
             </select>
           </div>
           <div class="field">
             <label>Base URL</label>
-            <input v-model="embedding.base_url" class="input" :placeholder="$t('settings.baseUrlPlaceholder')" />
+            <input
+              v-model="embedding.base_url"
+              class="input"
+              :placeholder="embedding.kind === 'local' ? $t('settings.localUrlPlaceholder') : $t('settings.baseUrlPlaceholder')"
+            />
           </div>
         </div>
         <div class="form-row">
@@ -366,11 +377,12 @@ onMounted(() => {
             <label>{{ $t('settings.modelName') }}</label>
             <input v-model="embedding.model" class="input" placeholder="text-embedding-3-small" />
           </div>
-          <div class="field">
+          <div v-if="embedding.kind !== 'local'" class="field">
             <label>{{ $t('settings.apiKeyLabel') }}</label>
             <input v-model="embedding.api_key" type="password" class="input" placeholder="sk-…" />
           </div>
         </div>
+        <div v-if="embedding.kind === 'local'" class="hint mb-2">{{ $t('settings.localNoKeyHint') }}</div>
         <div class="flex gap-2" style="justify-content: flex-end">
           <button class="btn" :disabled="testing === 'embedding'" @click="testProvider('embedding')">
             {{ testing === 'embedding' ? $t('settings.testing') : $t('settings.test') }}

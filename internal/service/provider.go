@@ -26,7 +26,7 @@ type ProviderConfigureReq struct {
 	BaseURL     string `json:"base_url"`
 	APIKey      string `json:"api_key"`
 	Model       string `json:"model"`
-	Kind        string `json:"kind"` // openai | mock
+	Kind        string `json:"kind"` // openai | mock | local
 	Enabled     bool   `json:"enabled"`
 }
 
@@ -42,9 +42,10 @@ func (s *Services) ProviderConfigure(ctx context.Context, req ProviderConfigureR
 	if kind == "" {
 		kind = "openai"
 	}
-	if kind != "openai" && kind != "mock" {
-		return nil, domain.InvalidArg("kind 仅允许 openai/mock")
+	if kind != "openai" && kind != "mock" && kind != "local" {
+		return nil, domain.InvalidArg("kind 仅允许 openai/mock/local")
 	}
+	// local 为本地端点，免 api_key；仅 openai 需密钥。
 	if req.Enabled && kind == "openai" && req.APIKey == "" {
 		return nil, domain.InvalidArg("启用 openai Provider 需要 api_key")
 	}
@@ -126,7 +127,9 @@ func (s *Services) ProviderTest(ctx context.Context, req ProviderTestReq) (*Prov
 			return &ProviderHealth{OK: false, Provider: req.Provider, Model: modelOf(cfg), LatencyMs: time.Since(start).Milliseconds(), Error: err.Error()}, nil
 		}
 	case "embedding":
-		p, err := provider.NewEmbedding(kind, cfg)
+		// 注册名约定：kind 需加 "embedding-" 前缀（与 tts-/asr- 一致）。
+		embedKind := "embedding-" + kind
+		p, err := provider.NewEmbedding(embedKind, cfg)
 		if err != nil {
 			return nil, domain.InvalidArg("%v", err)
 		}

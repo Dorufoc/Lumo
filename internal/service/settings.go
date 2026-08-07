@@ -103,8 +103,8 @@ func (s *Services) providerStatus() (map[string]ProviderStatus, error) {
 			continue
 		}
 		st := ProviderStatus{Configured: m["api_key"] != nil && m["api_key"] != ""}
-		if kind, ok := m["kind"].(string); ok && kind == "mock" {
-			st.Configured = true // mock 无需密钥即视为已配置
+		if kind, ok := m["kind"].(string); ok && (kind == "mock" || kind == "local") {
+			st.Configured = true // mock/local 免密钥即视为已配置
 		}
 		if model, ok := m["model"].(string); ok {
 			st.Model = model
@@ -115,6 +115,7 @@ func (s *Services) providerStatus() (map[string]ProviderStatus, error) {
 }
 
 // providerConfig 返回某个 Provider 的配置（含密钥，仅内部使用）。
+// 免密钥 Provider（mock/local）无 api_key 也视为已配置。
 func (s *Services) providerConfig(name string) (map[string]any, bool) {
 	b, err := readSecretsFile(s.Cfg.SecretsPath)
 	if err != nil {
@@ -128,8 +129,11 @@ func (s *Services) providerConfig(name string) (map[string]any, bool) {
 	if json.Unmarshal([]byte(v), &m) != nil {
 		return nil, false
 	}
+	kind, _ := m["kind"].(string)
 	if m["api_key"] == nil || m["api_key"] == "" {
-		return nil, false
+		if kind != "mock" && kind != "local" {
+			return nil, false
+		}
 	}
 	return m, true
 }
@@ -140,10 +144,14 @@ func (s *Services) ProviderConfigOf(name string) (map[string]any, bool) {
 }
 
 // saveProviderConfig 写入 Provider 配置（合并式，保留其他字段）。
+// 本地 Provider（local）免密钥：api_key 一律不入库。
 func (s *Services) saveProviderConfig(name string, m map[string]any) error {
 	b, err := readSecretsFile(s.Cfg.SecretsPath)
 	if err != nil {
 		return err
+	}
+	if kind, ok := m["kind"].(string); ok && kind == "local" {
+		delete(m, "api_key")
 	}
 	raw, _ := json.Marshal(m)
 	b["provider_"+name] = string(raw)
