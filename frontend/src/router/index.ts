@@ -26,6 +26,7 @@ const router = createRouter({
     { path: '/family', name: 'family', component: () => import('@/views/FamilyView.vue'), meta: { title: '家庭', roles: ['parent'] } },
     { path: '/knowledge-graph', name: 'knowledgeGraph', component: () => import('@/views/KnowledgeGraph.vue'), meta: { title: '知识图谱' } },
     { path: '/plugins', name: 'plugins', component: () => import('@/views/plugins/Plugins.vue'), meta: { title: '插件' } },
+    { path: '/webhooks', name: 'webhooks', component: () => import('@/views/plugins/Webhooks.vue'), meta: { title: 'Webhook' } },
     { path: '/settings', name: 'settings', component: () => import('@/views/SettingsView.vue'), meta: { title: '设置与数据' } },
     { path: '/admin', name: 'admin', component: () => import('@/views/AdminView.vue'), meta: { title: '管理端' } },
     { path: '/:pathMatch(.*)*', redirect: '/dashboard' },

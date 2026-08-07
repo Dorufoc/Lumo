@@ -1770,4 +1770,60 @@ export interface PluginInvokeResult {
   error?: string
 }
 
+// ── Webhook 出站分发（Todo 31 / 完整设计文档 4.23） ──
+
+/** 用户级领域事件白名单（与后端 agent.UserEventBus 一致，7 个）。 */
+export const WEBHOOK_EVENTS = [
+  'report:ready',
+  'exam:auto_submitted',
+  'flashcard:due',
+  'reminder:triggered',
+  'grading:appeal',
+  'sync:extended',
+  'grading:updated',
+] as const
+
+export type WebhookEventType = (typeof WEBHOOK_EVENTS)[number]
+
+/** Webhook 订阅 DTO。secret_ref 仅存 secrets.json 键名，密钥值从不返回。 */
+export interface WebhookSubscription {
+  id: string
+  workspace_id: string
+  url: string
+  event_types: WebhookEventType[]
+  secret_ref: string | null
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface WebhookSubscribeReq {
+  workspace_id: string
+  url: string
+  event_types: WebhookEventType[]
+  secret_ref?: string | null
+  idempotency_key: string
+}
+
+export interface WebhookTestSendReq {
+  workspace_id: string
+  subscription_id: string
+}
+
+/** 测试发送结果（不落库投递记录、不进重试队列）。 */
+export interface WebhookTestSendResp {
+  ok: boolean
+  status_code: number
+  error: string
+}
+
+export interface WebhookDeleteReq {
+  workspace_id: string
+  subscription_id: string
+}
+
+export interface WebhookListReq {
+  workspace_id: string
+}
+
 

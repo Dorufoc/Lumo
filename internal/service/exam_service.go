@@ -15,12 +15,12 @@ import (
 
 // ExamPaperSection 是试卷大题 DTO。
 type ExamPaperSection struct {
-	ID                string   `json:"id"`
-	PaperID           string   `json:"paper_id"`
-	Title             string   `json:"title"`
-	OrderNo           int      `json:"order_no"`
+	ID                 string   `json:"id"`
+	PaperID            string   `json:"paper_id"`
+	Title              string   `json:"title"`
+	OrderNo            int      `json:"order_no"`
 	QuestionVersionIDs []string `json:"question_version_ids"`
-	Score             int      `json:"score"`
+	Score              int      `json:"score"`
 }
 
 // ExamPaper 是试卷 DTO。
@@ -53,17 +53,17 @@ type Exam struct {
 
 // ExamResult 是考试结果 DTO（成绩/复盘/错题入队列）。
 type ExamResult struct {
-	ExamID        string              `json:"exam_id"`
-	PaperID       string              `json:"paper_id"`
-	Status        string              `json:"status"`
-	TotalScore    float64             `json:"total_score"`
-	MaxScore      float64             `json:"max_score"`
-	DurationMin   int                 `json:"duration_min"`
-	StartedAt     *string             `json:"started_at"`
-	EndedAt       *string             `json:"ended_at"`
-	Questions     []*ResultQuestion   `json:"questions"`
-	WrongAnswers  []*WrongAnswerItem  `json:"wrong_answers"`
-	ReviewActions []*ReviewAction     `json:"review_actions"`
+	ExamID        string             `json:"exam_id"`
+	PaperID       string             `json:"paper_id"`
+	Status        string             `json:"status"`
+	TotalScore    float64            `json:"total_score"`
+	MaxScore      float64            `json:"max_score"`
+	DurationMin   int                `json:"duration_min"`
+	StartedAt     *string            `json:"started_at"`
+	EndedAt       *string            `json:"ended_at"`
+	Questions     []*ResultQuestion  `json:"questions"`
+	WrongAnswers  []*WrongAnswerItem `json:"wrong_answers"`
+	ReviewActions []*ReviewAction    `json:"review_actions"`
 }
 
 // ScoreSummary 是 exams.score_summary_json 内容。
@@ -568,10 +568,13 @@ func (e *ExamService) finalize(ctx context.Context, wsID string, exam *repositor
 	// 发布用户级领域事件（不阻塞答题；Agent 未装配时静默）。
 	if e.s.Agent != nil && e.s.Agent.UserEvents != nil {
 		_ = e.s.Agent.UserEvents.Publish(exam.UserID, agent.Event{
-			Name: agent.EventExamAutoSubmitted,
+			Name:    agent.EventExamAutoSubmitted,
 			Payload: map[string]any{"exam_id": exam.ID, "status": domain.ExamStatusGraded},
 		})
 	}
+	// Webhook 出站分发（Todo 31）：订阅 exam:auto_submitted 的订阅立即收到签名的 POST。
+	_ = e.s.Webhooks.Dispatch(ctx, wsID, agent.EventExamAutoSubmitted,
+		map[string]any{"exam_id": exam.ID, "status": domain.ExamStatusGraded})
 	e.s.audit(ctx, wsID, "exam.auto_submit", "exam", exam.ID,
 		map[string]any{"score": result.TotalScore, "max": result.MaxScore})
 	out := &ExamResult{

@@ -59,6 +59,8 @@ func run() error {
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	defer cancel2()
 	go a.Svc.Reminder.RunScheduler(ctx2)
+	// Webhook 重试调度器：每 30s 扫描到期待重试的投递（同 Todo 14 模式）。
+	go a.Svc.Webhooks.RunScheduler(ctx2)
 
 	// 托管前端构建产物（存在时）；否则提示用 dev server。
 	if cfg.FrontendDist != "" {

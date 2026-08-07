@@ -23,6 +23,7 @@ const nav: NavItem[] = [
   { name: 'family', to: '/family', icon: '👨‍👩‍👧', labelKey: 'nav.family', roles: ['parent'] },
   { name: 'knowledgeGraph', to: '/knowledge-graph', icon: '🕸️', labelKey: 'nav.knowledgeGraph' },
   { name: 'plugins', to: '/plugins', icon: '🧩', labelKey: 'nav.plugins' },
+  { name: 'webhooks', to: '/webhooks', icon: '🔗', labelKey: 'nav.webhooks' },
   { name: 'settings', to: '/settings', icon: '⚙️', labelKey: 'nav.settings' },
 ]
 

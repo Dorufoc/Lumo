@@ -328,6 +328,12 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "PluginInvoke", a.Svc.Plugins.PluginInvoke)
 	bind0(srv, "PluginList", a.Svc.Plugins.PluginList)
 
+	// Webhook（API 文档 7.13 / 完整设计文档 4.24）
+	bind(srv, "WebhookSubscribe", a.Svc.Webhooks.WebhookSubscribe)
+	bind(srv, "WebhookTestSend", a.Svc.Webhooks.WebhookTestSend)
+	bind(srv, "WebhookDelete", a.Svc.Webhooks.WebhookDelete)
+	bind(srv, "WebhookList", a.Svc.Webhooks.WebhookList)
+
 	// AI 流式事件（GET /api/v1/events）
 	srv.RegisterSSE(a.Agent.Events)
 	srv.RegisterUserSSE(a.Agent.UserEvents)

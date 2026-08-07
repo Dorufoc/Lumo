@@ -146,6 +146,12 @@ func (r *ReportService) generateReport(ctx context.Context, req ReportGenerateRe
 		}); err != nil {
 			return nil, err
 		}
+		// Webhook 出站分发（Todo 31）：订阅 report:ready 的订阅立即收到签名的 POST。
+		_ = r.s.Webhooks.Dispatch(ctx, req.WorkspaceID, agent.EventReportReady,
+			map[string]any{
+				"report_id": row.ID, "period": req.Period, "status": status,
+				"ref_type": "report", "ref_id": row.ID,
+			})
 		r.s.audit(ctx, req.WorkspaceID, "report.ready", "report", row.ID,
 			map[string]any{"period": req.Period, "status": status})
 	} else {
