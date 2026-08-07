@@ -224,6 +224,10 @@ func (d *DocumentService) RAGAsk(ctx context.Context, req RAGAskReq) (*AgentRequ
 	if err := d.s.assertWorkspace(ctx, req.WorkspaceID); err != nil {
 		return nil, err
 	}
+	// 家长关闭 AI → FEATURE_DISABLED（4.21 G3：关闭 Tutor/RAG，不影响本地判分复习）。
+	if err := d.s.enforceParentAI(ctx, req.UserID); err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(req.Question) == "" {
 		return nil, domain.InvalidArg("question 不能为空")
 	}

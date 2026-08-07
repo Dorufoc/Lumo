@@ -53,6 +53,10 @@ func New(cfg *config.Config, db *sql.DB) *App {
 		}
 		return provider.NewLLM(kind, c)
 	}
+	// Agent 发送前门禁：家长关闭 AI → FEATURE_DISABLED（Tutor/RAG 等 AI 入口统一生效）。
+	a.Agent.BeforeChat = func(ctx context.Context, session *repository.AgentSessionRow) error {
+		return a.Svc.EnforceParentAI(ctx, session.UserID)
+	}
 	// 简答/代码题异步评分接入 Agent。
 	a.Svc.Grader = &agent.GradeSubmission{Repo: repo, Agent: a.Agent}
 	a.Svc.Agent = a.Agent
@@ -198,6 +202,14 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "CalendarEventUpsert", a.Svc.Calendar.CalendarEventUpsert)
 	bind(srv, "MilestoneCreate", a.Svc.Calendar.MilestoneCreate)
 	bind(srv, "MilestoneEvaluate", a.Svc.Calendar.MilestoneEvaluate)
+
+	// 家庭绑定与家长模式（API 文档 7.10 / 完整设计文档 4.21）
+	bind(srv, "FamilyInviteCreate", a.Svc.Family.FamilyInviteCreate)
+	bind(srv, "FamilyInviteGet", a.Svc.Family.FamilyInviteGet)
+	bind(srv, "FamilyBind", a.Svc.Family.FamilyBind)
+	bind(srv, "FamilyUnbind", a.Svc.Family.FamilyUnbind)
+	bind(srv, "ParentSettingsUpdate", a.Svc.Family.ParentSettingsUpdate)
+	bind(srv, "FamilyViewGet", a.Svc.Family.FamilyViewGet)
 
 	// 班级管理（API 文档 7.11 / 完整设计文档 4.22）
 	bind(srv, "ClassCreate", a.Svc.Classes.ClassCreate)

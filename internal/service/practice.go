@@ -130,6 +130,14 @@ func (p *PracticeService) PracticeStart(ctx context.Context, req PracticeStartRe
 	if err := p.s.assertUserActive(ctx, req.UserID); err != nil {
 		return nil, err
 	}
+	// 家长端只读：家长角色不能发起练习（4.21 家长视图只读）。
+	if err := p.s.assertNotParent(ctx, req.WorkspaceID, req.UserID, "practice.start"); err != nil {
+		return nil, err
+	}
+	// 家长每日时长限额（4.21 G3：超限 → QUOTA_EXCEEDED）。
+	if err := p.s.enforceParentDailyLimit(ctx, req.UserID); err != nil {
+		return nil, err
+	}
 	if req.Mode == "" {
 		req.Mode = "practice"
 	}

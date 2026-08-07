@@ -71,6 +71,10 @@ func (g *GoalService) GoalCreate(ctx context.Context, req GoalCreateReq) (*Learn
 	if err := g.s.assertUserActive(ctx, req.UserID); err != nil {
 		return nil, err
 	}
+	// 家长端只读：家长角色不能创建学习目标（4.21 家长视图只读）。
+	if err := g.s.assertNotParent(ctx, req.WorkspaceID, req.UserID, "goal.create"); err != nil {
+		return nil, err
+	}
 	if req.Name == "" || len(req.Name) > 160 {
 		return nil, domain.InvalidArg("目标名称长度须为 1-160")
 	}

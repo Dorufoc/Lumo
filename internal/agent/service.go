@@ -66,6 +66,9 @@ type Service struct {
 	Events     *Bus
 	UserEvents *UserEventBus
 	LLMFactory LLMFactory
+	// BeforeChat 是发送消息前的门禁回调（由 app 组装注入，例如家长关闭 AI 检查）。
+	// 返回错误时拒绝发送（错误直接透传给调用方）。nil 表示不检查。
+	BeforeChat func(ctx context.Context, session *repository.AgentSessionRow) error
 
 	mu      sync.Mutex
 	cancels map[string]context.CancelFunc // request_id → cancel
@@ -147,6 +150,12 @@ func (a *Service) AgentChatSend(ctx context.Context, req AgentChatSendReq) (*Age
 	}
 	if req.Message == "" {
 		return nil, domain.InvalidArg("message 不能为空")
+	}
+	// 发送前门禁（app 注入：家长关闭 AI → FEATURE_DISABLED）。
+	if a.BeforeChat != nil {
+		if err := a.BeforeChat(ctx, session); err != nil {
+			return nil, err
+		}
 	}
 	if err := a.enforceProviderPolicy(ctx, session); err != nil {
 		return nil, err

@@ -50,6 +50,7 @@ type Services struct {
 	Appeals     *AppealsService
 	Stats       *StatsService
 	Admin       *AdminService
+	Family      *FamilyService
 
 	// UserEvents 用户级领域事件总线：领域事件（reminder:triggered 等）经此持久化通知并广播。
 	// app 层将其与 agent.Service.UserEvents 指向同一实例（SSE 订阅端复用），见 app.go。
@@ -110,6 +111,7 @@ func New(repo *repository.Repo, cfg *config.Config) *Services {
 	s.Appeals = &AppealsService{s: s}
 	s.Stats = &StatsService{s: s}
 	s.Admin = &AdminService{s: s}
+	s.Family = &FamilyService{s: s}
 	// 用户级事件总线由服务层持有；app.New 会把 a.Agent.UserEvents 指向同一实例，
 	// 使服务层发布的事件能被 SSE 订阅者接收（见 internal/app/app.go 注释）。
 	s.UserEvents = agent.NewUserEventBus(repo)
@@ -206,6 +208,67 @@ func (s *Services) assertUserActive(ctx context.Context, userID string) error {
 // AssertUserActive 是 assertUserActive 的导出包装（HTTP 上传等跨层入口使用；空 user_id 跳过）。
 func (s *Services) AssertUserActive(ctx context.Context, userID string) error {
 	return s.assertUserActive(ctx, userID)
+}
+
+// enforceParentAI 家长 AI 禁用门禁：任一 active 绑定家长关闭 AI → FEATURE_DISABLED。
+// 供学生端 AI 入口（agent 会话/任务、RAG 问答）调用；不影响本地判分与复习。
+func (s *Services) enforceParentAI(ctx context.Context, userID string) error {
+	if userID == "" {
+		return nil
+	}
+	disabled, err := s.Repo.GetStudentAIDisabled(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if disabled {
+		return domain.FeatureDisabled("AI 辅导已被家长关闭")
+	}
+	return nil
+}
+
+// EnforceParentAI 导出包装（app 组装层注入 agent.BeforeChat 用）。
+func (s *Services) EnforceParentAI(ctx context.Context, userID string) error {
+	return s.enforceParentAI(ctx, userID)
+}
+
+// enforceParentDailyLimit 家长每日时长门禁：达到/超过上限 → QUOTA_EXCEEDED。
+// 供学生端练习入口（PracticeStart）调用；0=不限制。
+func (s *Services) enforceParentDailyLimit(ctx context.Context, userID string) error {
+	if userID == "" {
+		return nil
+	}
+	limit, err := s.Repo.GetStudentDailyLimitMin(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if limit <= 0 {
+		return nil
+	}
+	dayStart := startOfDayUTC(time.Now())
+	used, err := s.Repo.CountTodayStudyMinutes(ctx, userID, dayStart)
+	if err != nil {
+		return err
+	}
+	if used >= limit {
+		return domain.QuotaExceeded("今日学习时长已达家长设置上限（%d 分钟），明日再继续吧", limit)
+	}
+	return nil
+}
+
+// assertNotParent 校验调用者不是家长角色（家长端只读；写操作 FORBIDDEN，除家庭设置外）。
+func (s *Services) assertNotParent(ctx context.Context, wsID, userID, action string) error {
+	if userID == "" {
+		return nil
+	}
+	u, err := s.Repo.GetUser(ctx, wsID, userID)
+	if err != nil {
+		return err
+	}
+	if u != nil && u.Role == "parent" {
+		s.audit(ctx, wsID, action, "user", userID, map[string]any{"forbidden": true, "role": "parent"})
+		return domain.Forbidden("家长角色仅可查看家庭视图与设置使用限制")
+	}
+	return nil
 }
 
 // audit 追加审计事件。

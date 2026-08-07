@@ -1479,3 +1479,108 @@ export interface AuditPage {
   total: number
   items: AuditEntry[]
 }
+
+// ---------- 家庭绑定与家长模式（API 文档 7.10 / 完整设计文档 4.21） ----------
+
+/** 家庭绑定 DTO。 */
+export interface FamilyBinding {
+  id: string
+  student_user_id: string
+  parent_user_id: string
+  parent_display_name: string
+  status: string
+  bound_at: string | null
+  revoked_at: string | null
+  created_at: string
+}
+
+/** 家庭邀请码 DTO（24h 有效）。 */
+export interface FamilyInvite {
+  binding_id: string
+  code: string
+  status: string
+  expires_at: string
+  created_at: string
+}
+
+/** 学生端家庭面板（邀请码 + 绑定列表）。 */
+export interface FamilyOverview {
+  invite: FamilyInvite | null
+  active_parents: number
+  bindings: FamilyBinding[]
+}
+
+/** 家长限制设置 DTO。 */
+export interface ParentSettings {
+  parent_user_id: string
+  student_user_id: string
+  daily_limit_min: number
+  ai_disabled: boolean
+  report_enabled: boolean
+  updated_at: string
+}
+
+/** 家长视图中的学生信息。 */
+export interface FamilyStudent {
+  user_id: string
+  display_name: string
+}
+
+/** 学习时长聚合。 */
+export interface FamilyMinutes {
+  today: number
+  week: number
+}
+
+/** 家长视图单学生聚合（G2：时长/打卡/完成率/正确率/薄弱知识点；G4：不含隐私明细）。 */
+export interface FamilyViewItem {
+  binding_id: string
+  student: FamilyStudent
+  study_minutes: FamilyMinutes
+  streak_days: number
+  total_checkins: number
+  task_summary: { total: number; completed: number; pending: number }
+  accuracy: { correct: number; total: number; rate: number }
+  weak_knowledge: { knowledge_id: string; name: string; wrong_count: number }[]
+  settings: ParentSettings
+}
+
+export interface FamilyInviteCreateReq {
+  workspace_id: string
+  user_id: string
+  idempotency_key: string
+}
+
+export interface FamilyInviteGetReq {
+  workspace_id: string
+  user_id: string
+}
+
+export interface FamilyBindReq {
+  workspace_id: string
+  user_id: string
+  invite_code: string
+}
+
+export interface FamilyUnbindReq {
+  workspace_id: string
+  user_id: string
+  binding_id: string
+  version: number
+}
+
+export interface ParentSettingsUpdateReq {
+  workspace_id: string
+  user_id: string
+  student_user_id: string
+  daily_limit_min: number
+  ai_disabled: boolean
+  report_enabled: boolean
+}
+
+export interface FamilyViewReq {
+  workspace_id: string
+  user_id: string
+  student_user_id?: string
+}
+

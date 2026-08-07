@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { call, localizedMessageOf } from '@/api/client'
-import type { Settings } from '@/api/types'
+import { familyInviteCreate, familyInviteGet, familyUnbind } from '@/api/family'
+import type { FamilyOverview, Settings } from '@/api/types'
 import { useI18nStore } from '@/stores/i18n'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
 const i18n = useI18nStore()
 
-const tab = ref<'model' | 'data'>('model')
+const isStudent = computed(() => session.user?.role === 'student')
+const tab = ref<'model' | 'data' | 'family'>('model')
 const error = ref('')
 const info = ref('')
 
@@ -182,9 +184,83 @@ async function doExport() {
   }
 }
 
+// ---------- 家庭（学生端：邀请码 + 绑定列表） ----------
+const family = ref<FamilyOverview>({ invite: null, active_parents: 0, bindings: [] })
+const familyLoading = ref(false)
+const inviteBusy = ref(false)
+
+async function loadFamily() {
+  familyLoading.value = true
+  try {
+    family.value = (await familyInviteGet({ workspace_id: session.workspaceId, user_id: session.userId })) ?? {
+      invite: null,
+      active_parents: 0,
+      bindings: [],
+    }
+  } catch (e) {
+    error.value = localizedMessageOf(e)
+  } finally {
+    familyLoading.value = false
+  }
+}
+
+async function doGenerateInvite() {
+  error.value = ''
+  info.value = ''
+  inviteBusy.value = true
+  try {
+    await familyInviteCreate({
+      workspace_id: session.workspaceId,
+      user_id: session.userId,
+      idempotency_key: `fam-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    })
+    await loadFamily()
+  } catch (e) {
+    error.value = localizedMessageOf(e)
+  } finally {
+    inviteBusy.value = false
+  }
+}
+
+function copyInvite() {
+  if (!family.value.invite?.code) return
+  void navigator.clipboard?.writeText(family.value.invite.code)
+  info.value = i18n.t('family.inviteCopied')
+}
+
+async function doUnbind(bindingId: string) {
+  error.value = ''
+  info.value = ''
+  if (!window.confirm(i18n.t('family.unbindConfirm'))) return
+  inviteBusy.value = true
+  try {
+    await familyUnbind({
+      workspace_id: session.workspaceId,
+      user_id: session.userId,
+      binding_id: bindingId,
+      version: 1,
+    })
+    info.value = i18n.t('family.unbound')
+    await loadFamily()
+  } catch (e) {
+    error.value = localizedMessageOf(e)
+  } finally {
+    inviteBusy.value = false
+  }
+}
+
+function formatExpires(expiresAt: string): string {
+  try {
+    return new Date(expiresAt).toLocaleString()
+  } catch {
+    return expiresAt
+  }
+}
+
 onMounted(() => {
   void loadSettings()
   void loadSyncStatus()
+  if (isStudent.value) void loadFamily()
 })
 </script>
 
@@ -206,6 +282,9 @@ onMounted(() => {
     <div class="tabs">
       <div class="tab" :class="{ active: tab === 'model' }" @click="tab = 'model'">{{ $t('settings.tabModel') }}</div>
       <div class="tab" :class="{ active: tab === 'data' }" @click="tab = 'data'">{{ $t('settings.tabData') }}</div>
+      <div v-if="isStudent" class="tab" :class="{ active: tab === 'family' }" @click="tab = 'family'">
+        {{ $t('family.tabStudent') }}
+      </div>
       <RouterLink class="tab" to="/admin">{{ $t('admin.title') }}</RouterLink>
     </div>
 
@@ -363,5 +442,76 @@ onMounted(() => {
         </button>
       </div>
     </template>
+
+    <!-- 家庭（学生端） -->
+    <template v-if="tab === 'family'">
+      <div class="card">
+        <div class="flex-between mb-3">
+          <div class="card-title" style="margin: 0">{{ $t('family.inviteTitle') }}</div>
+          <button class="btn btn-sm btn-primary" :disabled="inviteBusy" @click="doGenerateInvite">
+            {{ family.invite ? $t('family.regenerating') : $t('family.generateInvite') }}
+          </button>
+        </div>
+        <p class="text-secondary mb-3">{{ $t('family.inviteHint') }}</p>
+        <div v-if="family.invite" class="invite-code">
+          <span class="code">{{ family.invite.code }}</span>
+          <button class="btn btn-sm" @click="copyInvite">{{ $t('family.copy') }}</button>
+        </div>
+        <div v-if="family.invite" class="hint">
+          {{ $t('family.expiresAt', { time: formatExpires(family.invite.expires_at) }) }}
+        </div>
+        <div v-else class="hint">{{ $t('family.inviteEmpty') }}</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          {{ $t('family.boundParents', { count: family.active_parents, max: 2 }) }}
+        </div>
+        <div v-if="family.bindings.length === 0" class="hint mt-2">{{ $t('family.noParents') }}</div>
+        <div v-else class="parent-list">
+          <div v-for="b in family.bindings" :key="b.id" class="parent-row">
+            <span class="parent-name">{{ b.parent_display_name || b.parent_user_id }}</span>
+            <button class="btn btn-sm btn-danger" :disabled="inviteBusy" @click="doUnbind(b.id)">
+              {{ $t('family.unbind') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
+
+<style scoped>
+.invite-code {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.code {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.parent-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.parent-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+}
+
+.parent-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+}
+</style>
