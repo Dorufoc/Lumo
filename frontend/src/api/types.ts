@@ -1905,4 +1905,43 @@ export interface SpeakingResultGetReq {
   submission_id: string
 }
 
+// ── 本地内容社区 Community（Todo 35 / 完整设计文档 4.20 社区） ──
+
+/** 社区帖子 DTO（持久化为 <DataDir>/community/<post_id>.json，likes 存本地 JSON 的 likes 字段）。 */
+export interface CommunityPost {
+  id: string
+  author_user_id: string
+  title: string
+  body_md: string
+  created_at: string
+  likes: number
+}
+
+export interface CommunityPostCreateReq {
+  workspace_id: string
+  author_user_id: string
+  title: string
+  body_md: string
+}
+
+export interface CommunityPostListReq {
+  workspace_id: string
+}
+
+export interface CommunityPostGetReq {
+  workspace_id: string
+  post_id: string
+}
+
+export interface CommunityPostLikeReq {
+  workspace_id: string
+  post_id: string
+}
+
+/** 点赞响应（返回新计数）。 */
+export interface CommunityPostLikeResp {
+  post_id: string
+  likes: number
+}
+
 

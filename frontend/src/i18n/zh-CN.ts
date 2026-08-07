@@ -26,6 +26,7 @@ const zhCN = {
     knowledgeGraph: '知识图谱',
     plugins: '插件',
     webhooks: 'Webhook',
+    community: '社区',
     footer: '本地优先 · 数据保存在本机',
   },
   common: {
@@ -1118,6 +1119,25 @@ const zhCN = {
     grammar: '语法',
     transcript: '转写文本',
     transcriptEmpty: '（无转写内容）',
+  },
+  community: {
+    title: '内容社区',
+    subtitle: '本地模拟社区：发布学习心得、浏览广场、为喜欢的帖子点赞',
+    publish: '发布帖子',
+    publishSuccess: '✅ 帖子发布成功',
+    publishFailed: '发布失败',
+    titlePlaceholder: '帖子标题',
+    bodyPlaceholder: '正文（支持 Markdown）…',
+    author: '作者',
+    likes: '赞',
+    like: '点赞',
+    likeSuccess: '已点赞',
+    empty: '广场还没有帖子，来发布第一篇吧',
+    scanFailed: '内容未通过安全扫描，禁止发布',
+    notFound: '帖子不存在或已被删除',
+    back: '返回广场',
+    publishing: '发布中…',
+    content: '内容',
   },
 }
 

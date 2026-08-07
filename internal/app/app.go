@@ -330,6 +330,12 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	// 云同步（Todo 34）：推送到 cmd/cloud-server 独立二进制；未配置 token 时回退 in-process。
 	bind(srv, "SyncCloudPush", a.Svc.Sync.SyncCloudPush)
 
+	// 本地内容社区（Todo 35 / 完整设计文档 4.20 社区）：帖子存 <DataDir>/community/*.json。
+	bind(srv, "CommunityPostCreate", a.Svc.Community.CommunityPostCreate)
+	bind(srv, "CommunityPostList", a.Svc.Community.CommunityPostList)
+	bind(srv, "CommunityPostGet", a.Svc.Community.CommunityPostGet)
+	bind(srv, "CommunityPostLike", a.Svc.Community.CommunityPostLike)
+
 	// 插件（API 文档 7.13 / 完整设计文档 4.24）
 	bind(srv, "PluginInstall", a.Svc.Plugins.PluginInstall)
 	bind(srv, "PluginSetEnabled", a.Svc.Plugins.PluginSetEnabled)

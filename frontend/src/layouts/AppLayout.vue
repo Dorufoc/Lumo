@@ -25,6 +25,7 @@ const nav: NavItem[] = [
   { name: 'knowledgeGraph', to: '/knowledge-graph', icon: '🕸️', labelKey: 'nav.knowledgeGraph' },
   { name: 'plugins', to: '/plugins', icon: '🧩', labelKey: 'nav.plugins' },
   { name: 'webhooks', to: '/webhooks', icon: '🔗', labelKey: 'nav.webhooks' },
+  { name: 'community', to: '/community', icon: '🏘️', labelKey: 'nav.community' },
   { name: 'settings', to: '/settings', icon: '⚙️', labelKey: 'nav.settings' },
 ]
 
