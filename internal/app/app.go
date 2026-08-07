@@ -218,6 +218,11 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "AssignmentSubmissionList", a.Svc.Assignments.AssignmentSubmissionList)
 	bind(srv, "AssignmentGrade", a.Svc.Assignments.AssignmentGrade)
 
+	// 申诉复议（API 文档 7.11 / 设计文档 4.22 C7）
+	bind(srv, "AppealCreate", a.Svc.Appeals.AppealCreate)
+	bind(srv, "AppealResolve", a.Svc.Appeals.AppealResolve)
+	bind(srv, "AppealList", a.Svc.Appeals.AppealList)
+
 	// 提醒与通知（API 文档 7.7 / 完整设计文档 4.14）
 	bind(srv, "ReminderUpsert", a.Svc.Reminder.ReminderUpsert)
 	bind(srv, "ReminderTestSend", a.Svc.Reminder.ReminderTestSend)

@@ -1223,6 +1223,8 @@ export interface Assignment {
   updated_at: string
   /** 学生附带本人提交（可见批阅状态/得分）；教师为 undefined。 */
   submission?: AssignmentSubmission
+  /** 学生对该作业的申诉（学生视角；无申诉为 undefined）。 */
+  appeal?: Appeal
 }
 
 /** 作业单题作答。 */
@@ -1293,4 +1295,47 @@ export interface AssignmentGradeReq {
   grade_json?: Record<string, unknown>
   version: number
   pre_grade?: boolean
+}
+
+// ---------- 申诉复议（API 文档 7.11 / 完整设计文档 4.22 C7） ----------
+
+export type AppealStatus = 'pending' | 'accepted' | 'rejected' | 'resolved'
+export type AppealDecision = 'accepted' | 'rejected'
+
+/** 申诉 DTO。 */
+export interface Appeal {
+  id: string
+  /** 即作业提交 id（assignment_submissions.id）。 */
+  grading_id: string
+  student_user_id: string
+  reason: string
+  status: AppealStatus
+  teacher_note: string
+  created_at: string
+  updated_at: string
+}
+
+/** 学生提交申诉。 */
+export interface AppealCreateReq {
+  workspace_id: string
+  user_id: string
+  grading_id: string
+  reason: string
+}
+
+/** 教师处理申诉：decision ∈ accepted|rejected；accepted 时可带 new_score 复议改分。 */
+export interface AppealResolveReq {
+  workspace_id: string
+  user_id: string
+  appeal_id: string
+  decision: AppealDecision
+  new_score?: number
+  teacher_note?: string
+}
+
+/** 教师复议视图：列出某作业全部申诉。 */
+export interface AppealListReq {
+  workspace_id: string
+  user_id: string
+  assignment_id: string
 }

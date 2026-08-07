@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"lumo/internal/agent"
 	"lumo/internal/domain"
 	"lumo/internal/repository"
 )
@@ -31,6 +32,8 @@ type Assignment struct {
 	UpdatedAt   string `json:"updated_at"`
 	// Submission 是当前用户的提交记录（学生可见得分；教师为 nil）。
 	Submission *AssignmentSubmission `json:"submission,omitempty"`
+	// Appeal 是当前学生对该作业提交的申诉（学生视角；无申诉为 nil）。
+	Appeal *Appeal `json:"appeal,omitempty"`
 }
 
 // AssignmentCreateReq 创建作业请求（教师，须已发布试卷）。
@@ -411,6 +414,12 @@ func (a *AssignmentsService) AssignmentList(ctx context.Context, req AssignmentL
 			return nil, err
 		} else if s != nil {
 			asg.Submission = a.submissionFromRow(ctx, req.WorkspaceID, s)
+			// 学生视角附带其申诉（教师端由 AppealList 单独列出）；grading_id 即提交 id
+			if ap, err := a.s.Repo.GetAppealByGrading(ctx, s.ID); err != nil {
+				return nil, err
+			} else if ap != nil {
+				asg.Appeal = a.s.Appeals.appealFromRow(ap)
+			}
 		}
 		out = append(out, asg)
 	}
@@ -501,6 +510,20 @@ func (a *AssignmentsService) AssignmentGrade(ctx context.Context, req Assignment
 	}
 	a.s.audit(ctx, req.WorkspaceID, "assignment.grade", "assignment_submission", sub.ID,
 		map[string]any{"assignment_id": sub.AssignmentID, "version": req.Version + 1})
+	// 复议联动：已接受的申诉在教师重新批阅后 → resolved（改分完成）。
+	if ap, err := a.s.Repo.GetAppealByGrading(ctx, sub.ID); err == nil && ap != nil && ap.Status == domain.AppealStatusAccepted {
+		if err := a.s.Repo.UpdateAppealStatus(ctx, ap.ID, domain.AppealStatusAccepted, domain.AppealStatusResolved, ap.TeacherNote); err == nil {
+			if saved, err := a.s.Repo.GetAppeal(ctx, ap.ID); err == nil && saved != nil {
+				_ = a.s.UserEvents.Publish(ap.StudentUserID, agent.Event{
+					Name: agent.EventGradingAppeal,
+					Payload: map[string]any{
+						"appeal_id": saved.ID, "grading_id": saved.GradingID, "status": saved.Status,
+						"ref_type": "grading_appeal", "ref_id": saved.ID,
+					},
+				})
+			}
+		}
+	}
 	return a.submissionFromRow(ctx, req.WorkspaceID, saved), nil
 }
 

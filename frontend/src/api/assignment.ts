@@ -1,6 +1,10 @@
 // 作业 API（API 文档 7.11 / 完整设计文档 4.22）。
 import { call } from '@/api/client'
 import type {
+  Appeal,
+  AppealCreateReq,
+  AppealListReq,
+  AppealResolveReq,
   Assignment,
   AssignmentCreateReq,
   AssignmentGradeReq,
@@ -39,4 +43,19 @@ export function assignmentSubmissionList(req: AssignmentSubmissionListReq): Prom
 /** 批阅作业（教师，乐观锁；pre_grade=true 时仅 EssayGrader 预批预览）。 */
 export function assignmentGrade(req: AssignmentGradeReq): Promise<AssignmentSubmission> {
   return call<AssignmentSubmission>('AssignmentGrade', { ...req })
+}
+
+/** 学生提交申诉。 */
+export function appealCreate(req: AppealCreateReq): Promise<Appeal> {
+  return call<Appeal>('AppealCreate', { ...req })
+}
+
+/** 教师处理申诉（复议改分）。 */
+export function appealResolve(req: AppealResolveReq): Promise<Appeal> {
+  return call<Appeal>('AppealResolve', { ...req })
+}
+
+/** 教师复议视图：列出某作业全部申诉。 */
+export function appealList(req: AppealListReq): Promise<Appeal[]> {
+  return call<Appeal[]>('AppealList', { ...req })
 }

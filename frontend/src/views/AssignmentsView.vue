@@ -6,6 +6,8 @@ import { computed, onMounted, ref } from 'vue'
 import { call, localizedMessageOf } from '@/api/client'
 import QuestionViewer from '@/components/QuestionViewer.vue'
 import type {
+  Appeal,
+  AppealDecision,
   Assignment,
   AssignmentSubmission,
   Class,
@@ -16,6 +18,9 @@ import type {
   ResultQuestion,
 } from '@/api/types'
 import {
+  appealCreate,
+  appealList,
+  appealResolve,
   assignmentCreate,
   assignmentGrade,
   assignmentList,
@@ -40,6 +45,7 @@ const classes = ref<Class[]>([])
 const papers = ref<ExamPaper[]>([])
 const library = ref<Question[]>([])
 const submissionsByAsg = ref<Record<string, AssignmentSubmission[]>>({})
+const appealsByAsg = ref<Record<string, Appeal[]>>({})
 const expanded = ref<string>('')
 
 const isTeacher = computed(() => session.user?.role === 'teacher')
@@ -174,6 +180,17 @@ async function loadSubmissions(asg: Assignment) {
   try {
     submissionsByAsg.value[asg.id] =
       (await assignmentSubmissionList({
+        workspace_id: session.workspaceId,
+        user_id: session.userId,
+        assignment_id: asg.id,
+      })) ?? []
+  } catch (e) {
+    error.value = localizedMessageOf(e)
+  }
+  // 同步加载该作业申诉（教师复议视图）
+  try {
+    appealsByAsg.value[asg.id] =
+      (await appealList({
         workspace_id: session.workspaceId,
         user_id: session.userId,
         assignment_id: asg.id,
@@ -433,6 +450,119 @@ function fmtDue(dueAt: string): string {
   return Number.isNaN(d.getTime()) ? dueAt : d.toLocaleString()
 }
 
+// ---- 学生：申诉 ----
+const appealTarget = ref<Assignment | null>(null)
+const appealReason = ref('')
+
+function openAppeal(asg: Assignment) {
+  error.value = ''
+  appealReason.value = ''
+  appealTarget.value = asg
+}
+
+function appealStatusKey(s: Appeal['status']): string {
+  switch (s) {
+    case 'pending':
+      return 'appeal.statusPending'
+    case 'accepted':
+      return 'appeal.statusAccepted'
+    case 'rejected':
+      return 'appeal.statusRejected'
+    default:
+      return 'appeal.statusResolved'
+  }
+}
+
+async function submitAppeal() {
+  if (!appealTarget.value || !appealTarget.value.submission) return
+  error.value = ''
+  info.value = ''
+  const reason = appealReason.value.trim()
+  if (!reason) {
+    error.value = i18n.t('appeal.reasonRequired')
+    return
+  }
+  busy.value = true
+  try {
+    await appealCreate({
+      workspace_id: session.workspaceId,
+      user_id: session.userId,
+      grading_id: appealTarget.value.submission.id,
+      reason,
+    })
+    appealTarget.value = null
+    info.value = i18n.t('appeal.created')
+    await load()
+  } catch (e) {
+    error.value = localizedMessageOf(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+// ---- 教师：复议 ----
+const resolveTarget = ref<{ asgID: string; appeal: Appeal } | null>(null)
+const resolveDecision = ref<AppealDecision>('accepted')
+const resolveNewScore = ref<number | null>(null)
+const resolveNote = ref('')
+
+function appealOf(asgID: string, gradingID: string): Appeal | undefined {
+  return (appealsByAsg.value[asgID] ?? []).find((a) => a.grading_id === gradingID)
+}
+
+function appealBadgeClass(s: Appeal['status']): string {
+  switch (s) {
+    case 'pending':
+      return 'badge-warning'
+    case 'accepted':
+      return 'badge-primary'
+    case 'rejected':
+      return 'badge-error'
+    default:
+      return 'badge-success'
+  }
+}
+
+function openResolve(asgID: string, sub: AssignmentSubmission) {
+  const ap = appealOf(asgID, sub.id)
+  if (!ap) return
+  error.value = ''
+  info.value = ''
+  resolveTarget.value = { asgID, appeal: ap }
+  resolveDecision.value = 'accepted'
+  resolveNewScore.value = null
+  resolveNote.value = ap.teacher_note || ''
+}
+
+async function submitResolve() {
+  if (!resolveTarget.value) return
+  error.value = ''
+  info.value = ''
+  const { asgID, appeal: ap } = resolveTarget.value
+  busy.value = true
+  try {
+    const req: { workspace_id: string; user_id: string; appeal_id: string; decision: AppealDecision; new_score?: number; teacher_note?: string } = {
+      workspace_id: session.workspaceId,
+      user_id: session.userId,
+      appeal_id: ap.id,
+      decision: resolveDecision.value,
+    }
+    if (resolveDecision.value === 'accepted' && resolveNewScore.value != null) {
+      req.new_score = resolveNewScore.value
+    }
+    if (resolveNote.value.trim()) req.teacher_note = resolveNote.value.trim()
+    await appealResolve(req)
+    resolveTarget.value = null
+    info.value = i18n.t('appeal.resolved')
+    await loadSubmissions({ id: asgID } as Assignment)
+    await load()
+  } catch (e) {
+    error.value = localizedMessageOf(e)
+  } finally {
+    busy.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -489,14 +619,22 @@ onMounted(load)
           </div>
 
           <!-- 学生操作 -->
-          <button v-else-if="asg.status === 'published' && !asg.submission" class="btn btn-sm btn-primary" @click="openAnswer(asg)">
-            {{ $t('assignments.submit') }}
-          </button>
-          <span v-else-if="asg.submission && asg.submission.graded_at" class="badge badge-success">
-            {{ $t('assignments.graded') }} · {{ gradeJSONOverall(asg.submission.grade_json) }}/{{ gradeTotalMax(asg.submission.grade_json) }}
-          </span>
-          <span v-else-if="asg.submission" class="badge badge-warning">{{ $t('assignments.pendingGrade') }}</span>
-          <span v-else class="hint">{{ $t('assignments.statusDraft') }}</span>
+          <template v-else>
+            <button v-if="asg.status === 'published' && !asg.submission" class="btn btn-sm btn-primary" @click="openAnswer(asg)">
+              {{ $t('assignments.submit') }}
+            </button>
+            <span v-if="asg.submission && asg.submission.graded_at" class="badge badge-success">
+              {{ $t('assignments.graded') }} · {{ gradeJSONOverall(asg.submission.grade_json) }}/{{ gradeTotalMax(asg.submission.grade_json) }}
+            </span>
+            <span v-if="asg.appeal" class="badge" :class="appealBadgeClass(asg.appeal.status)">
+              {{ $t(appealStatusKey(asg.appeal.status)) }}
+            </span>
+            <button v-if="asg.submission && asg.submission.graded_at && !asg.appeal" class="btn btn-sm" :disabled="busy" @click="openAppeal(asg)">
+              {{ $t('appeal.create') }}
+            </button>
+            <span v-if="asg.submission && !asg.submission.graded_at && !asg.appeal" class="badge badge-warning">{{ $t('assignments.pendingGrade') }}</span>
+            <span v-if="!asg.submission && asg.status !== 'published'" class="hint">{{ $t('assignments.statusDraft') }}</span>
+          </template>
         </div>
 
         <!-- 提交名单（教师） -->
@@ -509,7 +647,13 @@ onMounted(load)
               <span class="submission-name">{{ s.display_name || s.student_user_id }}</span>
               <span v-if="s.graded_at" class="badge badge-success">{{ $t('assignments.graded') }}</span>
               <span v-else class="badge badge-warning">{{ $t('assignments.pendingGrade') }}</span>
+              <span v-if="appealOf(asg.id, s.id)" class="badge" :class="appealBadgeClass(appealOf(asg.id, s.id)!.status)">
+                {{ $t(appealStatusKey(appealOf(asg.id, s.id)!.status)) }}
+              </span>
               <span class="hint">{{ $t('assignments.submittedAt') }} {{ fmtDue(s.created_at) }}</span>
+              <button v-if="appealOf(asg.id, s.id)" class="btn btn-sm" :disabled="busy" @click="openResolve(asg.id, s)">
+                {{ $t('appeal.resolve') }}
+              </button>
               <button class="btn btn-sm btn-primary" :disabled="busy" @click="openGrade(s)">
                 {{ $t('assignments.grade') }}
               </button>
@@ -683,6 +827,66 @@ onMounted(load)
             </div>
           </div>
         </template>
+      </div>
+    </div>
+
+    <!-- 申诉弹窗（学生） -->
+    <div v-if="appealTarget" class="modal-mask">
+      <div class="card modal">
+        <div class="flex-between mb-3">
+          <h3 style="margin: 0">{{ $t('appeal.title') }} · {{ appealTarget.title }}</h3>
+          <button class="btn btn-sm" @click="appealTarget = null">{{ $t('common.close') }}</button>
+        </div>
+        <div class="field">
+          <label>{{ $t('appeal.reasonLabel') }} *</label>
+          <textarea
+            v-model="appealReason"
+            class="input"
+            rows="4"
+            :placeholder="$t('appeal.reasonPlaceholder')"
+            style="min-height: 120px; resize: vertical"
+          ></textarea>
+        </div>
+        <div class="flex gap-3 mt-3">
+          <button class="btn" :disabled="busy" @click="appealTarget = null">{{ $t('common.cancel') }}</button>
+          <button class="btn btn-primary" :disabled="busy || !appealReason.trim()" @click="submitAppeal">
+            {{ busy ? $t('common.submitting') : $t('appeal.submit') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 复议弹窗（教师） -->
+    <div v-if="resolveTarget" class="modal-mask">
+      <div class="card modal">
+        <div class="flex-between mb-3">
+          <h3 style="margin: 0">{{ $t('appeal.resolveTitle') }}</h3>
+          <button class="btn btn-sm" @click="resolveTarget = null">{{ $t('common.close') }}</button>
+        </div>
+        <div class="hint mb-3" style="white-space: pre-wrap">
+          {{ $t('appeal.reasonPreview', { reason: resolveTarget.appeal.reason }) }}
+        </div>
+        <div class="field">
+          <label>{{ $t('appeal.decisionLabel') }}</label>
+          <select v-model="resolveDecision" class="input">
+            <option value="accepted">{{ $t('appeal.decisionAccept') }}</option>
+            <option value="rejected">{{ $t('appeal.decisionReject') }}</option>
+          </select>
+        </div>
+        <div v-if="resolveDecision === 'accepted'" class="field">
+          <label>{{ $t('appeal.newScoreLabel') }}</label>
+          <input v-model.number="resolveNewScore" class="input" type="number" min="0" :placeholder="$t('appeal.newScorePlaceholder')" />
+        </div>
+        <div class="field">
+          <label>{{ $t('appeal.teacherNoteLabel') }}</label>
+          <input v-model="resolveNote" class="input" type="text" :placeholder="$t('appeal.teacherNotePlaceholder')" />
+        </div>
+        <div class="flex gap-3 mt-3">
+          <button class="btn" :disabled="busy" @click="resolveTarget = null">{{ $t('common.cancel') }}</button>
+          <button class="btn btn-primary" :disabled="busy" @click="submitResolve">
+            {{ busy ? $t('common.saving') : $t('appeal.submit') }}
+          </button>
+        </div>
       </div>
     </div>
   </div>
