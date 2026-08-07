@@ -1663,3 +1663,49 @@ export interface MasteryExplanation {
   evidence: MasteryEvidence[]
 }
 
+// ── 创作分享 Share（API 文档 7.13 / 完整设计文档 4.20） ──
+
+/** 分享链接（ref_type: question | paper | flashcard_pack | note）。 */
+export interface Share {
+  id: string
+  workspace_id: string
+  user_id: string
+  ref_type: string
+  ref_id: string
+  token: string
+  /** ISO 时间；永久分享为 null。 */
+  expires_at: string | null
+  /** 已撤销时间；未撤销为 null。 */
+  revoked_at: string | null
+  /** 安全扫描结果；默认 "clean"。 */
+  scan_result: string | null
+  created_at: string
+}
+
+export interface ShareCreateReq {
+  workspace_id: string
+  user_id: string
+  ref_type: string
+  ref_id: string
+  /** 缺省=默认 7 天；0/-1=永久；合法值 {1,7,30}。 */
+  ttl_days?: number
+  idempotency_key: string
+}
+
+export interface ShareRevokeReq {
+  workspace_id: string
+  user_id: string
+  share_id: string
+}
+
+export interface ShareResolveReq {
+  token: string
+}
+
+export interface ShareResolveResult {
+  share: Share
+  /** 受限通道相对下载路径（exports/share-<token>.json）。 */
+  download_path: string
+}
+
+

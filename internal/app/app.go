@@ -216,6 +216,11 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "MasterySnapshotList", a.Svc.KnowledgeGraph.MasterySnapshotList)
 	bind(srv, "MasteryExplain", a.Svc.KnowledgeGraph.MasteryExplain)
 
+	// 创作分享（API 文档 7.13 / 完整设计文档 4.20）
+	bind(srv, "ShareCreate", a.Svc.Share.ShareCreate)
+	bind(srv, "ShareRevoke", a.Svc.Share.ShareRevoke)
+	bind(srv, "ShareResolve", a.Svc.Share.ShareResolve)
+
 	// 班级管理（API 文档 7.11 / 完整设计文档 4.22）
 	bind(srv, "ClassCreate", a.Svc.Classes.ClassCreate)
 	bind(srv, "ClassList", a.Svc.Classes.ClassList)
