@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"testing"
+	"time"
 
 	"lumo/internal/domain"
 )
@@ -340,5 +342,126 @@ func TestKnowledgeDeleteReferenced(t *testing.T) {
 		WorkspaceID: ws.ID, KnowledgeID: n.ID, Version: n.Version,
 	}); err == nil {
 		t.Fatal("expected INVALID_STATE deleting referenced knowledge")
+	}
+}
+
+// ---- Todo 37：题目事件 Webhook Dispatch 调用点 ----
+// question:published → QuestionTransition action=publish 成功后（audit 前）Dispatch；
+// question:changed   → 题目内容变更点 Dispatch（版本创建）。
+
+// setupQuestionWebhook 构造带 webhook 桩的服务：返回 (s, wsID, captured)。
+func setupQuestionWebhook(t *testing.T) (*Services, string, *capturedWebhook) {
+	t.Helper()
+	s, _ := newTestServices(t)
+	s.Webhooks.Now = func() time.Time { return webhookFixedNow }
+	ws, _ := createWorkspace(t, s)
+	srv, captured := webhookStub(t, http.StatusOK)
+	subscribeWebhook(t, s, ws.ID, srv.URL, []string{"question:published", "question:changed"}, nil, "wh-sub-qcall-0001")
+	return s, ws.ID, captured
+}
+
+// 发布成功 → question:published 投递一次（载荷含 question_id/version_id/status）。
+func TestQuestionPublishDispatchesWebhook(t *testing.T) {
+	s, wsID, captured := setupQuestionWebhook(t)
+	ctx := context.Background()
+
+	q, err := s.Knowledge.QuestionCreateDraft(ctx, QuestionCreateDraftReq{
+		WorkspaceID: wsID, Payload: scPayload("发布投递", "A"), IdempotencyKey: "qp-" + NewID(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	q, err = s.Knowledge.QuestionTransition(ctx, QuestionTransitionReq{
+		WorkspaceID: wsID, QuestionID: q.ID, Version: q.Version, Action: "review",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	q, err = s.Knowledge.QuestionTransition(ctx, QuestionTransitionReq{
+		WorkspaceID: wsID, QuestionID: q.ID, Version: q.Version, Action: "publish",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if captured.requests() != 1 {
+		t.Fatalf("publish 应投递 1 次，got %d", captured.requests())
+	}
+	var body struct {
+		EventType string         `json:"event_type"`
+		Payload   map[string]any `json:"payload"`
+	}
+	if err := json.Unmarshal(captured.body, &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.EventType != "question:published" {
+		t.Fatalf("期望 question:published，got %q", body.EventType)
+	}
+	if body.Payload["question_id"] != q.ID || body.Payload["status"] != "published" {
+		t.Fatalf("载荷异常: %+v", body.Payload)
+	}
+	if vid, ok := body.Payload["version_id"].(string); !ok || vid == "" {
+		t.Fatalf("载荷缺 version_id: %+v", body.Payload)
+	}
+}
+
+// 发布失败（非法迁移）不投递。
+func TestQuestionPublishRejectedNoDispatch(t *testing.T) {
+	s, wsID, captured := setupQuestionWebhook(t)
+	ctx := context.Background()
+
+	q, err := s.Knowledge.QuestionCreateDraft(ctx, QuestionCreateDraftReq{
+		WorkspaceID: wsID, Payload: scPayload("不投递", "A"), IdempotencyKey: "qn-" + NewID(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// draft 直接 publish → INVALID_STATE，不得投递。
+	if _, err := s.Knowledge.QuestionTransition(ctx, QuestionTransitionReq{
+		WorkspaceID: wsID, QuestionID: q.ID, Version: q.Version, Action: "publish",
+	}); err == nil {
+		t.Fatal("expected INVALID_STATE")
+	}
+	if captured.requests() != 0 {
+		t.Fatalf("非法迁移不应投递，got %d", captured.requests())
+	}
+}
+
+// 版本创建（内容变更）→ question:changed 投递一次（载荷含 question_id/version_id）。
+func TestQuestionVersionChangeDispatchesWebhook(t *testing.T) {
+	s, wsID, captured := setupQuestionWebhook(t)
+	ctx := context.Background()
+
+	q, err := s.Knowledge.QuestionCreateDraft(ctx, QuestionCreateDraftReq{
+		WorkspaceID: wsID, Payload: scPayload("版本变更", "A"), IdempotencyKey: "qvw-" + NewID(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Knowledge.QuestionCreateVersion(ctx, QuestionCreateVersionReq{
+		WorkspaceID: wsID, QuestionID: q.ID, Version: q.Version,
+		Payload: scPayload("版本变更2", "B"), IdempotencyKey: "qvw2-" + NewID(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if captured.requests() != 1 {
+		t.Fatalf("版本创建应投递 1 次，got %d", captured.requests())
+	}
+	var body struct {
+		EventType string         `json:"event_type"`
+		Payload   map[string]any `json:"payload"`
+	}
+	if err := json.Unmarshal(captured.body, &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.EventType != "question:changed" {
+		t.Fatalf("期望 question:changed，got %q", body.EventType)
+	}
+	if body.Payload["question_id"] != q.ID {
+		t.Fatalf("载荷缺 question_id: %+v", body.Payload)
+	}
+	if vid, ok := body.Payload["version_id"].(string); !ok || vid == "" {
+		t.Fatalf("载荷缺 version_id: %+v", body.Payload)
 	}
 }

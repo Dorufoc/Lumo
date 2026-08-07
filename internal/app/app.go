@@ -350,6 +350,8 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "PluginConfirmPermissions", a.Svc.Plugins.PluginConfirmPermissions)
 	bind(srv, "PluginInvoke", a.Svc.Plugins.PluginInvoke)
 	bind0(srv, "PluginList", a.Svc.Plugins.PluginList)
+	bind0(srv, "PluginMarketList", a.Svc.Plugins.PluginMarketList)
+	bind(srv, "PluginThemeGet", a.Svc.Plugins.PluginThemeGet)
 
 	// Webhook（API 文档 7.13 / 完整设计文档 4.24）
 	bind(srv, "WebhookSubscribe", a.Svc.Webhooks.WebhookSubscribe)

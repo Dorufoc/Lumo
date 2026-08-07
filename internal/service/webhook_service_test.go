@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"lumo/internal/agent"
 	"lumo/internal/domain"
 	"lumo/internal/repository"
 )
@@ -559,5 +560,60 @@ func TestWebhookList(t *testing.T) {
 	}
 	if !subs[0].Enabled {
 		t.Errorf("订阅应默认启用")
+	}
+}
+
+// ---- ⑭ 题目事件白名单：question:published / question:changed 注册 + 订阅接受 + 投递 ----
+
+func TestWebhookQuestionEvents(t *testing.T) {
+	s, wsID, _ := setupWebhookServices(t)
+
+	// IsRegisteredUserEvent 对新事件返回 true（WebhookSubscribe 白名单自动扩展）。
+	for _, ev := range []string{"question:published", "question:changed"} {
+		if !agent.IsRegisteredUserEvent(ev) {
+			t.Fatalf("%s 应注册", ev)
+		}
+	}
+
+	// WebhookSubscribe 接受新事件。
+	srv, captured := webhookStub(t, http.StatusOK)
+	sub := subscribeWebhook(t, s, wsID, srv.URL, []string{"question:published", "question:changed"}, nil, "wh-sub-q-0001")
+	if len(sub.EventTypes) != 2 {
+		t.Fatalf("订阅事件应含 2 个新事件，got %v", sub.EventTypes)
+	}
+
+	// Dispatch 产生投递：两条事件各投递一次。
+	if err := s.Webhooks.Dispatch(ctx(), wsID, "question:published",
+		map[string]any{"question_id": "q1", "version_id": "v1", "status": "published"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Webhooks.Dispatch(ctx(), wsID, "question:changed",
+		map[string]any{"question_id": "q1", "version_id": "v2"}); err != nil {
+		t.Fatal(err)
+	}
+	if captured.requests() != 2 {
+		t.Fatalf("应投递 2 次，got %d", captured.requests())
+	}
+	dels, err := s.Repo.ListWebhookDeliveriesBySubscription(ctx(), sub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dels) != 2 || dels[0].Status != "sent" || dels[1].Status != "sent" {
+		t.Fatalf("两条投递均应 sent，got %+v", dels)
+	}
+
+	// 请求体契约：event_type 与载荷透传。
+	var body struct {
+		EventType string         `json:"event_type"`
+		Payload   map[string]any `json:"payload"`
+	}
+	if err := json.Unmarshal(captured.body, &body); err != nil {
+		t.Fatalf("解析投递请求体: %v", err)
+	}
+	if body.EventType != "question:changed" {
+		t.Fatalf("最后一条应 question:changed，got %q", body.EventType)
+	}
+	if body.Payload["question_id"] != "q1" || body.Payload["version_id"] != "v2" {
+		t.Fatalf("载荷透传异常: %+v", body.Payload)
 	}
 }

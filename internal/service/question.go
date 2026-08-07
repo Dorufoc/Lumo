@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"lumo/internal/agent"
 	"lumo/internal/domain"
 	"lumo/internal/repository"
 )
@@ -325,6 +326,10 @@ func (k *KnowledgeService) QuestionCreateVersion(ctx context.Context, req Questi
 				return nil, err
 			}
 		}
+		// 题目内容变更（Todo 37）：新版本创建即内容变更，经 Webhook 投递
+		// （复用 Todo 31 HMAC/退避/投递机制；不走 UserEventBus）。
+		_ = k.s.Webhooks.Dispatch(ctx, req.WorkspaceID, agent.EventQuestionChanged,
+			map[string]any{"question_id": q.ID, "version_id": v.ID})
 		k.s.audit(ctx, req.WorkspaceID, "question.version", "question", q.ID, map[string]any{"version_no": vno})
 		row, err := k.s.Repo.GetQuestionVersion(ctx, v.ID)
 		if err != nil {
@@ -382,6 +387,16 @@ func (k *KnowledgeService) QuestionTransition(ctx context.Context, req QuestionT
 	}
 	if _, err := k.s.Repo.UpdateQuestionStatus(ctx, req.WorkspaceID, req.QuestionID, req.Version, next); err != nil {
 		return nil, err
+	}
+	// 新题发布（Todo 37）：QuestionTransition action=publish 成功后经 Webhook 投递
+	// （复用 Todo 31 HMAC/退避/投递机制；不走 UserEventBus，不产生 notifications 行）。
+	if req.Action == "publish" {
+		var versionID string
+		if q.CurrentVersionID != nil {
+			versionID = *q.CurrentVersionID
+		}
+		_ = k.s.Webhooks.Dispatch(ctx, req.WorkspaceID, agent.EventQuestionPublished,
+			map[string]any{"question_id": q.ID, "version_id": versionID, "status": next})
 	}
 	k.s.audit(ctx, req.WorkspaceID, "question.transition", "question", q.ID,
 		map[string]any{"action": req.Action, "from": q.Status, "to": next})

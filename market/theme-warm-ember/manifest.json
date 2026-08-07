@@ -1,0 +1,8 @@
+{
+  "name": "warm-ember",
+  "version": "1.0.0",
+  "description": "暖橙色主题插件（Todo 37 市场示例）：在沙箱中输出 theme tokens，前端应用为 CSS 变量。",
+  "entrypoint": ["python3", "market/theme-warm-ember/theme.py"],
+  "permissions": [],
+  "api_version": "1"
+}

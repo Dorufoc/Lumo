@@ -8,16 +8,28 @@ import {
   pluginInstall,
   pluginInvoke,
   pluginList,
+  pluginMarketList,
   pluginSetEnabled,
+  pluginThemeGet,
   pluginUninstall,
 } from '@/api/plugins'
-import type { Plugin, PluginInvokeResult } from '@/api/types'
+import type { Plugin, PluginInvokeResult, PluginMarketItem } from '@/api/types'
+import { useThemeStore } from '@/stores/theme'
+
+const themeStore = useThemeStore()
 
 const loading = ref(false)
 const busy = ref(false)
 const error = ref('')
 const info = ref('')
 const plugins = ref<Plugin[]>([])
+
+// 主题插件市场（Todo 37）
+const marketLoading = ref(false)
+const marketError = ref('')
+const market = ref<PluginMarketItem[]>([])
+const applyingTheme = ref(false)
+const themeError = ref('')
 
 // 安装弹窗
 const installDialog = ref(false)
@@ -47,6 +59,47 @@ async function refresh() {
   } finally {
     loading.value = false
   }
+}
+
+async function refreshMarket() {
+  marketLoading.value = true
+  marketError.value = ''
+  try {
+    market.value = await pluginMarketList()
+  } catch (e) {
+    marketError.value = localizedMessageOf(e)
+  } finally {
+    marketLoading.value = false
+  }
+}
+
+// 在沙箱中执行主题插件，取回校验后的 tokens 并应用到 CSS 变量（不修改 tokens.css）
+async function applyThemePlugin(item: PluginMarketItem) {
+  applyingTheme.value = true
+  themeError.value = ''
+  try {
+    const resp = await pluginThemeGet({ plugin_id: item.id })
+    if (!resp.ok) {
+      themeError.value = resp.error || 'plugins.applyTheme'
+      return
+    }
+    if (resp.tokens && Object.keys(resp.tokens).length > 0) {
+      themeStore.applyTokens(resp.tokens)
+      info.value = 'plugins.themeApplied'
+    } else {
+      themeError.value = 'plugins.applyTheme'
+    }
+  } catch (e) {
+    themeError.value = localizedMessageOf(e)
+  } finally {
+    applyingTheme.value = false
+  }
+}
+
+function restoreDefaultTheme() {
+  themeError.value = ''
+  themeStore.clearTokens()
+  info.value = 'plugins.applyThemeSuccess'
 }
 
 function openInstall() {
@@ -161,7 +214,10 @@ function formatResult(r: PluginInvokeResult | null): string {
   return JSON.stringify(r.result ?? null, null, 2)
 }
 
-onMounted(refresh)
+onMounted(() => {
+  refresh()
+  refreshMarket()
+})
 </script>
 
 <template>
@@ -215,6 +271,59 @@ onMounted(refresh)
           <div class="plugin-row">
             <span class="meta-label">{{ $t('plugins.installedAt') }}</span>
             <span>{{ p.installed_at }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 主题插件市场（Todo 37） -->
+    <div class="market-section">
+      <div class="page-header market-header">
+        <div>
+          <h2>{{ $t('plugins.marketTitle') }}</h2>
+          <div class="subtitle">{{ $t('plugins.marketSubtitle') }}</div>
+        </div>
+        <button class="btn btn-sm" :disabled="applyingTheme" @click="restoreDefaultTheme">
+          {{ $t('plugins.clearTheme') }}
+        </button>
+      </div>
+
+      <div v-if="marketError" class="error-banner">{{ marketError }}</div>
+      <div v-if="themeError" class="error-banner">{{ themeError }}</div>
+      <div v-if="info" class="offline-banner">{{ $t(info) }}</div>
+
+      <div v-if="marketLoading" class="loading"><div class="spinner"></div></div>
+      <div v-else-if="market.length === 0" class="empty">{{ $t('plugins.marketEmpty') }}</div>
+
+      <div v-else class="plugin-list">
+        <div v-for="item in market" :key="item.id" class="card plugin-card">
+          <div class="plugin-head">
+            <div>
+              <span class="plugin-name">{{ item.name }}</span>
+              <span class="plugin-version">v{{ item.version }}</span>
+              <span class="plugin-state" :class="item.enabled ? 'ok' : 'off'">
+                {{ item.enabled ? $t('plugins.enabledState') : $t('plugins.disabledState') }}
+              </span>
+            </div>
+            <div class="flex gap-2">
+              <button class="btn btn-sm btn-primary" :disabled="applyingTheme" @click="applyThemePlugin(item)">
+                {{ $t('plugins.applyTheme') }}
+              </button>
+            </div>
+          </div>
+          <div class="plugin-meta">
+            <div v-if="item.description" class="plugin-desc">{{ item.description }}</div>
+            <div class="plugin-row">
+              <span class="meta-label">{{ $t('plugins.marketPermissions') }}</span>
+              <span v-if="item.permissions.length === 0" class="meta-none">{{ $t('plugins.noPermissions') }}</span>
+              <span v-else class="perm-chips">
+                <span v-for="perm in item.permissions" :key="perm" class="chip">{{ perm }}</span>
+              </span>
+            </div>
+            <div class="plugin-row">
+              <span class="meta-label">{{ $t('plugins.installedAt') }}</span>
+              <span>{{ item.installed_at }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -301,6 +410,16 @@ onMounted(refresh)
 </template>
 
 <style scoped>
+.market-section {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.market-header {
+  margin-bottom: var(--space-3);
+}
+
 .plugin-list {
   display: flex;
   flex-direction: column;

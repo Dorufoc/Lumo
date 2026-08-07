@@ -483,6 +483,8 @@ Content-Type: application/json
 | `PluginInstall` | `path` 或 `url`, `signature` | `Plugin`（权限声明确认） |
 | `PluginSetEnabled` | `plugin_id`, `enabled` | `Plugin` |
 | `PluginUninstall` | `plugin_id` | `DeleteResult` |
+| `PluginMarketList` | 无参 | `PluginMarketItem[]`（市场目录 = 已安装插件，含描述/权限 DTO） |
+| `PluginThemeGet` | `plugin_id` | `PluginThemeGetResp`（沙箱执行主题插件，返回校验后 tokens） |
 | `ShareCreate` | `ref_type`, `ref_id`, `ttl_days`, `idempotency_key` | `Share`（强制安全扫描） |
 | `ShareRevoke` | `share_id` | `DeleteResult` |
 | `WebhookSubscribe` | `url`, `event_types[]`, `idempotency_key` | `WebhookSubscription` |
@@ -499,6 +501,8 @@ Content-Type: application/json
 | `reminder:triggered` | `kind`, `ref_type`, `ref_id` | 提醒触发（含桌面通知） |
 | `grading:appeal` | `appeal_id`, `grading_id`, `status` | 申诉状态变化（教师端） |
 | `sync:extended` | `entity_type`, `conflict_count` | 扩展对象同步冲突 |
+| `question:published` | `question_id`, `version_id`, `status` | 新题发布成功（QuestionTransition action=publish） |
+| `question:changed` | `question_id`, `version_id` | 题目内容变更（新版本创建） |
 
 ### 7.15 扩展 API 验收标准
 

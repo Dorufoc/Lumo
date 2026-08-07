@@ -8,7 +8,10 @@ import type {
   PluginInstallReq,
   PluginInvokeReq,
   PluginInvokeResult,
+  PluginMarketItem,
   PluginSetEnabledReq,
+  PluginThemeGetReq,
+  PluginThemeGetResp,
   PluginUninstallReq,
 } from '@/api/types'
 
@@ -40,4 +43,14 @@ export function pluginInvoke(req: PluginInvokeReq): Promise<PluginInvokeResult> 
 /** 列出全部已安装插件（全局，倒序）。 */
 export function pluginList(): Promise<Plugin[]> {
   return call<Plugin[]>('PluginList', {})
+}
+
+/** 列出本地市场目录（Todo 37：来源 = plugins 表，含描述与权限的 DTO）。 */
+export function pluginMarketList(): Promise<PluginMarketItem[]> {
+  return call<PluginMarketItem[]>('PluginMarketList', {})
+}
+
+/** 在沙箱中执行主题插件，返回校验后的 theme tokens（用于 CSS 变量应用）。 */
+export function pluginThemeGet(req: PluginThemeGetReq): Promise<PluginThemeGetResp> {
+  return call<PluginThemeGetResp>('PluginThemeGet', { ...req })
 }

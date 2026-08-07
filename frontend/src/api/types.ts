@@ -1790,9 +1790,32 @@ export interface PluginInvokeResult {
   error?: string
 }
 
+/** 市场目录条目 DTO（Todo 37：市场 = plugins 表 enabled 模拟，含描述与已确认权限）。 */
+export interface PluginMarketItem {
+  id: string
+  name: string
+  version: string
+  description: string
+  enabled: boolean
+  permissions: string[]
+  installed_at: string
+}
+
+export interface PluginThemeGetReq {
+  plugin_id: string
+}
+
+/** 主题插件结果：ok=false = 插件自身失败（error 为 stderr 诊断）；ok=true 时 tokens 为
+ * 校验后的 CSS 变量键值对（--key → value，防注入）。 */
+export interface PluginThemeGetResp {
+  ok: boolean
+  tokens?: Record<string, string>
+  error?: string
+}
+
 // ── Webhook 出站分发（Todo 31 / 完整设计文档 4.23） ──
 
-/** 用户级领域事件白名单（与后端 agent.UserEventBus 一致，7 个）。 */
+/** 用户级领域事件白名单（与后端 agent.UserEventBus 一致，9 个）。 */
 export const WEBHOOK_EVENTS = [
   'report:ready',
   'exam:auto_submitted',
@@ -1801,6 +1824,8 @@ export const WEBHOOK_EVENTS = [
   'grading:appeal',
   'sync:extended',
   'grading:updated',
+  'question:published',
+  'question:changed',
 ] as const
 
 export type WebhookEventType = (typeof WEBHOOK_EVENTS)[number]

@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
 
 	"lumo/internal/domain"
 	"lumo/internal/plugin"
@@ -304,6 +306,114 @@ func (p *PluginService) PluginList(ctx context.Context) ([]*Plugin, error) {
 		out = append(out, pl)
 	}
 	return out, nil
+}
+
+// PluginMarketItem 是市场目录条目 DTO（Todo 37）。
+// 市场 = plugins 表 enabled 模拟：来源即全部已安装插件，含描述与已确认权限。
+type PluginMarketItem struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Version     string   `json:"version"`
+	Description string   `json:"description"`
+	Enabled     bool     `json:"enabled"`
+	Permissions []string `json:"permissions"`
+	InstalledAt string   `json:"installed_at"`
+}
+
+// PluginMarketList 列出本地市场目录（来源 = plugins 表，ORDER BY installed_at DESC）。
+func (p *PluginService) PluginMarketList(ctx context.Context) ([]*PluginMarketItem, error) {
+	rows, err := p.s.Repo.ListPlugins(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*PluginMarketItem, 0, len(rows))
+	for _, r := range rows {
+		m, err := plugin.ParseManifest([]byte(r.ManifestJSON))
+		if err != nil {
+			return nil, domain.PluginError("插件 manifest 解析失败: %v", err)
+		}
+		var perms []string
+		if err := json.Unmarshal([]byte(r.PermissionsJSON), &perms); err != nil {
+			return nil, domain.PluginError("插件权限数据损坏: %v", err)
+		}
+		out = append(out, &PluginMarketItem{
+			ID: r.ID, Name: r.Name, Version: r.Version, Description: m.Description,
+			Enabled: r.Enabled, Permissions: perms, InstalledAt: r.InstalledAt,
+		})
+	}
+	return out, nil
+}
+
+// PluginThemeGetReq 主题插件读取请求（Todo 37）。
+type PluginThemeGetReq struct {
+	PluginID string `json:"plugin_id"`
+}
+
+// PluginThemeGetResp 主题插件结果：OK=false 表示插件自身失败（Error 为 stderr 诊断，
+// 非服务错误）；OK=true 时 Tokens 为校验后的 theme tokens 键值对。
+type PluginThemeGetResp struct {
+	OK     bool              `json:"ok"`
+	Tokens map[string]string `json:"tokens,omitempty"`
+	Error  string            `json:"error,omitempty"`
+}
+
+// themeTokenKeyPattern 是主题 token 键合法格式：-- 前缀 + 字母/数字/连字符
+// （对应 tokens.css 的 CSS 变量命名，防注入）。
+var themeTokenKeyPattern = regexp.MustCompile(`^--[a-zA-Z0-9-]+$`)
+
+// PluginThemeGet 在沙箱中执行主题插件，返回校验后的 theme tokens。
+//
+// 协议：stdin 传 JSON-RPC {"method":"run","params":{}}；stdout 须为合法 JSON 且
+// 形状为 {"tokens": {"--key": "value", ...}}（否则 PLUGIN_ERROR）。逐键校验防
+// CSS 注入：键匹配 ^--[a-zA-Z0-9-]+$、值不含 ; { } 与换行。零新增错误码
+// （复用 INVALID_ARGUMENT/NOT_FOUND/INVALID_STATE/PLUGIN_ERROR/SANDBOX_LIMIT）。
+func (p *PluginService) PluginThemeGet(ctx context.Context, req PluginThemeGetReq) (*PluginThemeGetResp, error) {
+	if req.PluginID == "" {
+		return nil, domain.InvalidArg("plugin_id 必填")
+	}
+	row, err := p.s.Repo.GetPluginByID(ctx, req.PluginID)
+	if err != nil {
+		return nil, err
+	}
+	if row == nil {
+		return nil, domain.NotFound("插件不存在")
+	}
+	if !row.Enabled {
+		return nil, domain.InvalidState("插件未启用")
+	}
+	m, err := plugin.ParseManifest([]byte(row.ManifestJSON))
+	if err != nil {
+		return nil, domain.PluginError("插件 manifest 解析失败: %v", err)
+	}
+	res, err := plugin.Execute(ctx, p.sandbox(), m.Entrypoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	if res.ExitCode != 0 {
+		stderr := res.Stderr
+		if stderr == "" {
+			stderr = fmt.Sprintf("退出码 %d", res.ExitCode)
+		}
+		return &PluginThemeGetResp{OK: false, Error: stderr}, nil
+	}
+	var out struct {
+		Tokens map[string]string `json:"tokens"`
+	}
+	if err := json.Unmarshal(res.Stdout, &out); err != nil {
+		return nil, domain.PluginError("主题插件输出不是合法 JSON: %v", err)
+	}
+	if out.Tokens == nil {
+		return nil, domain.PluginError("主题插件输出须为 {\"tokens\":{...}} 形状")
+	}
+	for k, v := range out.Tokens {
+		if !themeTokenKeyPattern.MatchString(k) {
+			return nil, domain.PluginError("主题 token 键非法: %q", k)
+		}
+		if strings.ContainsAny(v, ";{}") || strings.ContainsAny(v, "\n\r") {
+			return nil, domain.PluginError("主题 token 值含非法字符（防 CSS 注入）")
+		}
+	}
+	return &PluginThemeGetResp{OK: true, Tokens: out.Tokens}, nil
 }
 
 // pluginByID 重取插件 DTO（SQLite 无 INSERT..RETURNING，落库后回读时间戳）。

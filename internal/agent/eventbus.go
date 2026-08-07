@@ -70,6 +70,8 @@ const (
 	EventGradingAppeal     = "grading:appeal"      // 申诉状态变化：appeal_id, grading_id, status
 	EventSyncExtended      = "sync:extended"       // 扩展对象同步冲突：entity_type, conflict_count
 	EventGradingUpdated    = "grading:updated"     // 异步评分完成/失败：grading_id, status, score
+	EventQuestionPublished = "question:published"  // 新题发布（Todo 37）：question_id, version_id, status
+	EventQuestionChanged   = "question:changed"    // 题目内容变更（Todo 37）：question_id, version_id
 )
 
 // userEventRegistry 记录可发布的用户级事件名称。
@@ -81,6 +83,8 @@ var userEventRegistry = map[string]struct{}{
 	EventGradingAppeal:     {},
 	EventSyncExtended:      {},
 	EventGradingUpdated:    {},
+	EventQuestionPublished: {},
+	EventQuestionChanged:   {},
 }
 
 // IsRegisteredUserEvent 判断事件名是否为已注册的用户级领域事件。
