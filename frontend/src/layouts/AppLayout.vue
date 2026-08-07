@@ -26,6 +26,7 @@ const nav: NavItem[] = [
   { name: 'plugins', to: '/plugins', icon: '🧩', labelKey: 'nav.plugins' },
   { name: 'webhooks', to: '/webhooks', icon: '🔗', labelKey: 'nav.webhooks' },
   { name: 'community', to: '/community', icon: '🏘️', labelKey: 'nav.community' },
+  { name: 'requests', to: '/requests', icon: '🙋', labelKey: 'nav.requests' },
   { name: 'settings', to: '/settings', icon: '⚙️', labelKey: 'nav.settings' },
 ]
 

@@ -336,6 +336,13 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "CommunityPostGet", a.Svc.Community.CommunityPostGet)
 	bind(srv, "CommunityPostLike", a.Svc.Community.CommunityPostLike)
 
+	// 求题闭环（Todo 36 / 完整设计文档 4.20 P2 求题请求）：状态机 open|fulfilled|closed。
+	bind(srv, "ContentRequestCreate", a.Svc.Request.ContentRequestCreate)
+	bind(srv, "ContentRequestGenerate", a.Svc.Request.ContentRequestGenerate)
+	bind(srv, "ContentRequestReview", a.Svc.Request.ContentRequestReview)
+	bind(srv, "ContentRequestCancel", a.Svc.Request.ContentRequestCancel)
+	bind(srv, "ContentRequestList", a.Svc.Request.ContentRequestList)
+
 	// 插件（API 文档 7.13 / 完整设计文档 4.24）
 	bind(srv, "PluginInstall", a.Svc.Plugins.PluginInstall)
 	bind(srv, "PluginSetEnabled", a.Svc.Plugins.PluginSetEnabled)

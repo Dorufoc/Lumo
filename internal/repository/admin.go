@@ -67,6 +67,48 @@ func (r *Repo) GetReviewQueueItem(ctx context.Context, id string) (*ReviewQueueI
 	return getReviewQueueItemBy(ctx, r.db, id)
 }
 
+// CreateReviewQueueItem 创建审核条目（ref_type + ref_id；status 默认 pending）。
+// q 可传 *sql.Tx 使调用方与业务写入同事务。
+func (r *Repo) CreateReviewQueueItem(ctx context.Context, q queryer, refType, refID string) (*ReviewQueueItemRow, error) {
+	id := newIDLocal()
+	if _, err := q.ExecContext(ctx, `
+		INSERT INTO review_queue_items (id, ref_type, ref_id, status)
+		VALUES (?, ?, ?, 'pending')`, id, refType, refID); err != nil {
+		return nil, normalizeErr(err)
+	}
+	return getReviewQueueItemBy(ctx, q, id)
+}
+
+// ListReviewQueueItemsByRef 按 ref_type + ref_id 列出审核条目（倒序）。
+func (r *Repo) ListReviewQueueItemsByRef(ctx context.Context, refType, refID string) ([]*ReviewQueueItemRow, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT `+reviewQueueCols+` FROM review_queue_items
+		WHERE ref_type = ? AND ref_id = ?
+		ORDER BY created_at DESC`, refType, refID)
+	if err != nil {
+		return nil, normalizeErr(err)
+	}
+	defer rows.Close()
+	var out []*ReviewQueueItemRow
+	for rows.Next() {
+		it, err := scanReviewQueueItem(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
+// GetPendingReviewItemByRef 获取 ref 的 pending 审核条目；无返回 nil。
+func (r *Repo) GetPendingReviewItemByRef(ctx context.Context, refType, refID string) (*ReviewQueueItemRow, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT `+reviewQueueCols+` FROM review_queue_items
+		WHERE ref_type = ? AND ref_id = ? AND status = 'pending'
+		ORDER BY created_at ASC LIMIT 1`, refType, refID)
+	return scanReviewQueueItem(row)
+}
+
 func getReviewQueueItemBy(ctx context.Context, q queryer, id string) (*ReviewQueueItemRow, error) {
 	row := q.QueryRowContext(ctx, `
 		SELECT `+reviewQueueCols+` FROM review_queue_items WHERE id = ?`, id)

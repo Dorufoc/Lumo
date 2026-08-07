@@ -30,6 +30,7 @@ const router = createRouter({
     { path: '/webhooks', name: 'webhooks', component: () => import('@/views/plugins/Webhooks.vue'), meta: { title: 'Webhook' } },
     { path: '/community', name: 'community', component: () => import('@/views/community/CommunityView.vue'), meta: { title: '社区' } },
     { path: '/community/:postId', name: 'communityDetail', component: () => import('@/views/community/PostDetailView.vue'), meta: { title: '帖子详情' } },
+    { path: '/requests', name: 'requests', component: () => import('@/views/requests/RequestsView.vue'), meta: { title: '求题' } },
     { path: '/settings', name: 'settings', component: () => import('@/views/SettingsView.vue'), meta: { title: '设置与数据' } },
     { path: '/admin', name: 'admin', component: () => import('@/views/AdminView.vue'), meta: { title: '管理端' } },
     { path: '/:pathMatch(.*)*', redirect: '/dashboard' },

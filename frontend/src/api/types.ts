@@ -1944,4 +1944,62 @@ export interface CommunityPostLikeResp {
   likes: number
 }
 
+// ── 求题闭环 ContentRequest（Todo 36 / 完整设计文档 4.20 P2 求题请求） ──
+
+/** 求题请求状态（content_requests.status：open 唯一中间态；fulfilled/closed 终态）。 */
+export type ContentRequestStatus = 'open' | 'fulfilled' | 'closed'
+
+/** 求题请求审核状态（review_queue_items.status；未生成草稿时为空）。 */
+export type ContentRequestReviewStatus = 'pending' | 'approved' | 'rejected'
+
+/** 求题请求 DTO。 */
+export interface ContentRequest {
+  id: string
+  workspace_id: string
+  user_id: string
+  knowledge_ids: string[]
+  description: string
+  status: ContentRequestStatus
+  review_status?: ContentRequestReviewStatus
+  review_reason?: string
+  question_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ContentRequestCreateReq {
+  workspace_id: string
+  user_id: string
+  knowledge_ids: string[]
+  description: string
+  idempotency_key: string
+}
+
+export interface ContentRequestGenerateReq {
+  workspace_id: string
+  user_id: string
+  request_id: string
+  count: number
+  idempotency_key: string
+}
+
+export interface ContentRequestReviewReq {
+  workspace_id: string
+  user_id: string
+  request_id: string
+  decision: 'approved' | 'rejected'
+  reason: string
+}
+
+export interface ContentRequestCancelReq {
+  workspace_id: string
+  user_id: string
+  request_id: string
+}
+
+export interface ContentRequestListReq {
+  workspace_id: string
+  user_id?: string
+}
+
 
