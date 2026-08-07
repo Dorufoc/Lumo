@@ -22,6 +22,26 @@ func New(db *sql.DB) *Repo { return &Repo{db: db} }
 // DB 暴露底层连接（迁移、备份等基础设施使用）。
 func (r *Repo) DB() *sql.DB { return r.db }
 
+// queryer 统一 *sql.DB 与 *sql.Tx（服务层事务与直接执行共用）。
+type queryer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
+// WithTx 在事务中执行 fn，任一步骤失败整体回滚。
+func (r *Repo) WithTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return normalizeErr(err)
+	}
+	if err := fn(tx); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return normalizeErr(tx.Commit())
+}
+
 // exec 执行写语句并返回错误归一化。
 func (r *Repo) exec(ctx context.Context, query string, args ...any) error {
 	_, err := r.db.ExecContext(ctx, query, args...)

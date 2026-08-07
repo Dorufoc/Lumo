@@ -1373,3 +1373,109 @@ export interface ClassStats {
   /** 薄弱知识点 Top5（按答错次数降序）。 */
   weak_top: WeakKnowledgeItem[]
 }
+
+// ---------- 管理端 Admin（Todo 26：审核队列 / Provider 策略 / 功能开关 / 用户禁用 / 审计查询） ----------
+
+/** AdminReviewListReq 审核队列请求（status 空=全部）。 */
+export interface AdminReviewListReq {
+  workspace_id: string
+  status?: string
+}
+
+/** 审核条目 DTO。 */
+export interface ReviewQueueItem {
+  id: string
+  ref_type: string
+  ref_id: string
+  status: string
+  reason: string
+  reviewed_at?: string
+}
+
+/** 审核队列页。 */
+export interface ReviewQueuePage {
+  total: number
+  items: ReviewQueueItem[]
+}
+
+/** AdminReviewDecideReq 审核决策请求。 */
+export interface AdminReviewDecideReq {
+  workspace_id: string
+  item_id: string
+  decision: 'approved' | 'rejected' | 'taken_down'
+  reason?: string
+}
+
+/** AdminProviderPolicySetReq 设置 Provider 策略请求。 */
+export interface AdminProviderPolicySetReq {
+  workspace_id: string
+  provider: string
+  model: string
+  allowed: boolean
+  daily_quota?: number
+  monthly_budget?: number
+}
+
+/** Provider 策略 DTO。 */
+export interface ProviderPolicy {
+  provider: string
+  model: string
+  allowed: boolean
+  daily_quota?: number
+  monthly_budget?: number
+}
+
+/** AdminFeatureFlagSetReq 设置功能开关请求。 */
+export interface AdminFeatureFlagSetReq {
+  workspace_id: string
+  key: string
+  enabled: boolean
+  rollout_percent: number
+}
+
+/** 功能开关 DTO。 */
+export interface FeatureFlag {
+  key: string
+  enabled: boolean
+  rollout_percent: number
+}
+
+/** AdminUserDisableReq 禁用用户请求。 */
+export interface AdminUserDisableReq {
+  workspace_id: string
+  user_id: string
+  reason?: string
+}
+
+/** 用户状态 DTO。 */
+export interface UserStatus {
+  disabled: boolean
+  disabled_at?: string
+}
+
+/** AdminAuditListReq 审计列表请求。 */
+export interface AdminAuditListReq {
+  workspace_id: string
+  actor_id?: string
+  action?: string
+}
+
+/** 审计条目 DTO。 */
+export interface AuditEntry {
+  id: string
+  actor_id?: string
+  actor_role?: string
+  action: string
+  entity_type: string
+  entity_id?: string
+  payload: string
+  before_json: string
+  after_json: string
+  created_at: string
+}
+
+/** 审计页。 */
+export interface AuditPage {
+  total: number
+  items: AuditEntry[]
+}

@@ -277,6 +277,14 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "ProviderTest", a.Svc.ProviderTest)
 	bind(srv, "ProviderClear", a.Svc.ProviderClear)
 
+	// 管理端（审核队列 / Provider 策略 / 功能开关 / 用户禁用 / 审计查询）
+	bind(srv, "AdminReviewList", a.Svc.Admin.AdminReviewList)
+	bind(srv, "AdminReviewDecide", a.Svc.Admin.AdminReviewDecide)
+	bind(srv, "AdminProviderPolicySet", a.Svc.Admin.AdminProviderPolicySet)
+	bind(srv, "AdminFeatureFlagSet", a.Svc.Admin.AdminFeatureFlagSet)
+	bind(srv, "AdminUserDisable", a.Svc.Admin.AdminUserDisable)
+	bind(srv, "AdminAuditList", a.Svc.Admin.AdminAuditList)
+
 	// 资料与 RAG
 	bind(srv, "DocumentImport", a.Svc.Document.DocumentImport)
 	bind(srv, "DocumentList", a.Svc.Document.DocumentList)
@@ -351,6 +359,13 @@ func (a *App) handleLibraryUpload(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		apphttp.WriteErrorJSON(w, apphttp.EnvelopeError(domain.InvalidArg("读取文件失败: %v", err), rid))
 		return
+	}
+	// 上传入口按 user_id 校验用户活跃（表单缺省跳过；Preflight/CommitImport 在持久化时复核）。
+	if uid := r.FormValue("user_id"); uid != "" {
+		if err := a.Svc.AssertUserActive(r.Context(), uid); err != nil {
+			apphttp.WriteErrorJSON(w, apphttp.EnvelopeError(err, rid))
+			return
+		}
 	}
 	result, err := a.Svc.Import.UploadFile(header.Filename, content)
 	if err != nil {

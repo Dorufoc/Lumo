@@ -49,6 +49,7 @@ type Services struct {
 	Assignments *AssignmentsService
 	Appeals     *AppealsService
 	Stats       *StatsService
+	Admin       *AdminService
 
 	// UserEvents 用户级领域事件总线：领域事件（reminder:triggered 等）经此持久化通知并广播。
 	// app 层将其与 agent.Service.UserEvents 指向同一实例（SSE 订阅端复用），见 app.go。
@@ -108,6 +109,7 @@ func New(repo *repository.Repo, cfg *config.Config) *Services {
 	s.Assignments = &AssignmentsService{s: s, Now: time.Now}
 	s.Appeals = &AppealsService{s: s}
 	s.Stats = &StatsService{s: s}
+	s.Admin = &AdminService{s: s}
 	// 用户级事件总线由服务层持有；app.New 会把 a.Agent.UserEvents 指向同一实例，
 	// 使服务层发布的事件能被 SSE 订阅者接收（见 internal/app/app.go 注释）。
 	s.UserEvents = agent.NewUserEventBus(repo)
@@ -183,6 +185,27 @@ func (s *Services) assertWorkspace(ctx context.Context, id string) error {
 		return domain.InvalidArg("workspace_id 无效")
 	}
 	return s.Repo.AssertWorkspace(ctx, id)
+}
+
+// assertUserActive 校验用户未被禁用（仅命令型方法入口调用；空 user_id 跳过）。
+// 已禁用用户返回 UNAUTHORIZED；未知用户视为活跃（不阻断）。
+func (s *Services) assertUserActive(ctx context.Context, userID string) error {
+	if userID == "" {
+		return nil
+	}
+	disabledAt, err := s.Repo.GetUserDisabledAt(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if disabledAt != nil {
+		return domain.Unauthorized("用户已被禁用，请联系管理员")
+	}
+	return nil
+}
+
+// AssertUserActive 是 assertUserActive 的导出包装（HTTP 上传等跨层入口使用；空 user_id 跳过）。
+func (s *Services) AssertUserActive(ctx context.Context, userID string) error {
+	return s.assertUserActive(ctx, userID)
 }
 
 // audit 追加审计事件。

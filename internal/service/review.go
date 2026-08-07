@@ -134,6 +134,16 @@ func (r *ReviewService) WrongAnswerUpdateCause(ctx context.Context, req WrongAns
 	if !valid[req.Cause] {
 		return nil, domain.InvalidArg("cause 仅允许 concept/reading/calculation/memory/method/expression/unknown")
 	}
+	wa, err := r.s.Repo.GetWrongAnswer(ctx, req.WorkspaceID, req.WrongID)
+	if err != nil {
+		return nil, err
+	}
+	if wa == nil {
+		return nil, domain.NotFound("错题不存在")
+	}
+	if err := r.s.assertUserActive(ctx, wa.UserID); err != nil {
+		return nil, err
+	}
 	row, err := r.s.Repo.UpdateWrongCause(ctx, req.WorkspaceID, req.WrongID, req.Version, req.Cause)
 	if err != nil {
 		return nil, err
@@ -203,6 +213,9 @@ func (r *ReviewService) ReviewSubmit(ctx context.Context, req ReviewSubmitReq) (
 		}
 		if card == nil {
 			return nil, domain.NotFound("复习卡不存在")
+		}
+		if err := r.s.assertUserActive(ctx, card.UserID); err != nil {
+			return nil, err
 		}
 		if card.Status != "active" {
 			return nil, domain.InvalidState("复习卡已结束")

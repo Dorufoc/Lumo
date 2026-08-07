@@ -206,6 +206,7 @@ onMounted(() => {
     <div class="tabs">
       <div class="tab" :class="{ active: tab === 'model' }" @click="tab = 'model'">{{ $t('settings.tabModel') }}</div>
       <div class="tab" :class="{ active: tab === 'data' }" @click="tab = 'data'">{{ $t('settings.tabData') }}</div>
+      <RouterLink class="tab" to="/admin">{{ $t('admin.title') }}</RouterLink>
     </div>
 
     <!-- 模型配置 -->

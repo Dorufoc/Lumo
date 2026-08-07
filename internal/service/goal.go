@@ -68,6 +68,9 @@ func (g *GoalService) GoalCreate(ctx context.Context, req GoalCreateReq) (*Learn
 	if err := g.s.assertWorkspace(ctx, req.WorkspaceID); err != nil {
 		return nil, err
 	}
+	if err := g.s.assertUserActive(ctx, req.UserID); err != nil {
+		return nil, err
+	}
 	if req.Name == "" || len(req.Name) > 160 {
 		return nil, domain.InvalidArg("目标名称长度须为 1-160")
 	}
@@ -95,7 +98,7 @@ func (g *GoalService) GoalCreate(ctx context.Context, req GoalCreateReq) (*Learn
 		row := &repository.GoalRow{
 			ID: NewID(), WorkspaceID: req.WorkspaceID, UserID: req.UserID,
 			Name: req.Name, Subject: req.Subject, ExamAt: req.ExamAt, TargetScore: req.TargetScore,
-			DailyMinutes: req.DailyMinutes,
+			DailyMinutes:      req.DailyMinutes,
 			AvailableWeekdays: mustJSON(req.AvailableWeekdays),
 			KnowledgeIDs:      mustJSON(req.KnowledgeIDs),
 		}
@@ -157,9 +160,12 @@ func (g *GoalService) GoalUpdate(ctx context.Context, req GoalUpdateReq) (*Learn
 	if cur == nil {
 		return nil, domain.NotFound("学习目标不存在")
 	}
+	if err := g.s.assertUserActive(ctx, cur.UserID); err != nil {
+		return nil, err
+	}
 	row := &repository.GoalRow{
 		Name: cur.Name, Subject: cur.Subject, ExamAt: cur.ExamAt, TargetScore: cur.TargetScore,
-		DailyMinutes: cur.DailyMinutes,
+		DailyMinutes:      cur.DailyMinutes,
 		AvailableWeekdays: cur.AvailableWeekdays,
 		KnowledgeIDs:      cur.KnowledgeIDs,
 	}
@@ -211,6 +217,9 @@ func (g *GoalService) GoalTransition(ctx context.Context, req GoalTransitionReq)
 	}
 	if cur == nil {
 		return nil, domain.NotFound("学习目标不存在")
+	}
+	if err := g.s.assertUserActive(ctx, cur.UserID); err != nil {
+		return nil, err
 	}
 	if cur.Version != req.Version {
 		return nil, domain.Conflict("学习目标已被修改，请刷新后重试")
@@ -270,6 +279,9 @@ func (g *GoalService) PlanGenerate(ctx context.Context, req PlanGenerateReq) ([]
 	}
 	if goal == nil {
 		return nil, domain.NotFound("学习目标不存在")
+	}
+	if err := g.s.assertUserActive(ctx, goal.UserID); err != nil {
+		return nil, err
 	}
 	if goal.Status != "active" && goal.Status != "draft" {
 		return nil, domain.InvalidState("仅 active/draft 目标可生成计划")
@@ -332,7 +344,7 @@ func (g *GoalService) PlanGenerate(ctx context.Context, req PlanGenerateReq) ([]
 				dueAt := dayStart
 				if minutes != goal.DailyMinutes {
 					// 第二段任务顺延到当天晚些时候（UTC 简化处理）
-					dueAt = day.Add(2*time.Hour).Format(time.RFC3339)
+					dueAt = day.Add(2 * time.Hour).Format(time.RFC3339)
 				}
 				row := &repository.PlanTaskRow{
 					ID: NewID(), WorkspaceID: req.WorkspaceID, UserID: goal.UserID,
@@ -406,6 +418,9 @@ func (g *GoalService) PlanTaskTransition(ctx context.Context, req PlanTaskTransi
 	}
 	if cur == nil {
 		return nil, domain.NotFound("计划任务不存在")
+	}
+	if err := g.s.assertUserActive(ctx, cur.UserID); err != nil {
+		return nil, err
 	}
 	if cur.Version != req.Version {
 		return nil, domain.Conflict("计划任务已被修改，请刷新后重试")

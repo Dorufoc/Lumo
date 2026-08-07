@@ -78,6 +78,27 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 	}
 	sort.Strings(names)
 
+	// 迁移在固定连接上执行：部分迁移（如 0006 重建 users 表）需要临时关闭外键检查，
+	// 而 PRAGMA foreign_keys 只能在事务外修改且作用于单条连接，因此借用 db.Conn
+	// 独占一条连接；迁移结束（含出错）后恢复 PRAGMA 原状再归还连接池。
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	restorePragmas := func() {
+		// 用独立的 background context 保证恢复逻辑不被调用方取消影响。
+		_, _ = conn.ExecContext(context.Background(), `PRAGMA defer_foreign_keys = OFF`)
+		_, _ = conn.ExecContext(context.Background(), `PRAGMA foreign_keys = ON`)
+	}
+	defer restorePragmas()
+	if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
+		return err
+	}
+	if _, err := conn.ExecContext(ctx, `PRAGMA defer_foreign_keys = ON`); err != nil {
+		return err
+	}
+
 	for _, name := range names {
 		version := strings.TrimSuffix(filepath.Base(name), ".sql")
 		if _, ok := applied[version]; ok {
@@ -89,7 +110,7 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		}
 		sum := sha256.Sum256(b)
 		checksum := hex.EncodeToString(sum[:])
-		tx, err := db.BeginTx(ctx, nil)
+		tx, err := conn.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"sync"
+	"time"
 
 	"lumo/internal/domain"
 	"lumo/internal/provider"
@@ -13,16 +14,16 @@ import (
 
 // AgentSession 是 AI 会话 DTO。
 type AgentSession struct {
-	ID            string           `json:"id"`
-	WorkspaceID   string           `json:"workspace_id"`
-	UserID        string           `json:"user_id"`
-	Agent         string           `json:"agent"`
-	Status        string           `json:"status"`
-	RequestID     *string          `json:"request_id"`
-	ContextVer    *string          `json:"context_version"`
-	Messages      []*AgentMessage  `json:"messages,omitempty"`
-	CreatedAt     string           `json:"created_at"`
-	UpdatedAt     string           `json:"updated_at"`
+	ID          string          `json:"id"`
+	WorkspaceID string          `json:"workspace_id"`
+	UserID      string          `json:"user_id"`
+	Agent       string          `json:"agent"`
+	Status      string          `json:"status"`
+	RequestID   *string         `json:"request_id"`
+	ContextVer  *string         `json:"context_version"`
+	Messages    []*AgentMessage `json:"messages,omitempty"`
+	CreatedAt   string          `json:"created_at"`
+	UpdatedAt   string          `json:"updated_at"`
 }
 
 // AgentMessage 是消息 DTO。
@@ -147,6 +148,9 @@ func (a *Service) AgentChatSend(ctx context.Context, req AgentChatSendReq) (*Age
 	if req.Message == "" {
 		return nil, domain.InvalidArg("message 不能为空")
 	}
+	if err := a.enforceProviderPolicy(ctx, session); err != nil {
+		return nil, err
+	}
 	rid := req.RequestID
 	if rid == "" {
 		rid = newID()
@@ -163,6 +167,74 @@ func (a *Service) AgentChatSend(ctx context.Context, req AgentChatSendReq) (*Age
 
 	go a.runStream(ctx, session, rid, req.Message)
 	return &AgentRequest{RequestID: rid, SessionID: session.ID}, nil
+}
+
+// agentPolicyProvider 是 Agent 对话的 Provider 策略键（LLM 类别，与 secrets 的 provider_llm 对应）。
+const agentPolicyProvider = "llm"
+
+// agentUsageEventType 是 Agent 对话用量事件类型（usage_events.event_type）。
+const agentUsageEventType = "agent.chat"
+
+// enforceProviderPolicy 在启动流式回复前执行 Provider 策略/配额门禁：
+//   - 无策略：默认放行；
+//   - allowed=false → FEATURE_DISABLED；
+//   - daily_quota/monthly_budget 超限 → QUOTA_EXCEEDED；
+//   - 放行时记录一条 usage_events（provider/model 随 payload 落库，供计数）。
+func (a *Service) enforceProviderPolicy(ctx context.Context, session *repository.AgentSessionRow) error {
+	model := a.currentModel()
+	p, err := a.Repo.GetProviderPolicy(ctx, agentPolicyProvider, model)
+	if err != nil {
+		return err
+	}
+	if p != nil && !p.Allowed {
+		return domain.FeatureDisabled("模型 %s 已被管理员禁用", model)
+	}
+	now := time.Now().UTC()
+	if p != nil && p.DailyQuota != nil {
+		since := startOfDayUTC(now)
+		n, err := a.Repo.CountUsageEvents(ctx, session.WorkspaceID, agentUsageEventType,
+			agentPolicyProvider, model, since)
+		if err != nil {
+			return err
+		}
+		if n >= *p.DailyQuota {
+			return domain.QuotaExceeded("今日对话次数已达上限")
+		}
+	}
+	if p != nil && p.MonthlyBudget != nil {
+		since := startOfMonthUTC(now)
+		n, err := a.Repo.CountUsageEvents(ctx, session.WorkspaceID, agentUsageEventType,
+			agentPolicyProvider, model, since)
+		if err != nil {
+			return err
+		}
+		if n >= *p.MonthlyBudget {
+			return domain.QuotaExceeded("本月对话次数已达上限")
+		}
+	}
+	_ = a.Repo.AppendUsageEvent(ctx, session.WorkspaceID, session.UserID, agentUsageEventType,
+		map[string]any{"provider": agentPolicyProvider, "model": model})
+	return nil
+}
+
+// currentModel 解析当前生效的模型名：优先取 LLM 工厂返回的 Provider 名，
+// 未配置（LLMFactory 为空或构造失败）时回退 "mock"（本地确定性降级）。
+func (a *Service) currentModel() string {
+	llm, err := a.llm()
+	if err != nil || llm == nil {
+		return "mock"
+	}
+	return llm.Name()
+}
+
+// startOfDayUTC 返回 UTC 当日零点（RFC3339，用于用量计数）。
+func startOfDayUTC(now time.Time) string {
+	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).Format(time.RFC3339)
+}
+
+// startOfMonthUTC 返回 UTC 当月 1 日零点（RFC3339，用于月度预算计数）。
+func startOfMonthUTC(now time.Time) string {
+	return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339)
 }
 
 // RunStream 启动外部驱动的流式任务（RAGAsk 等复用）：发布事件、保存回复、维护会话状态。
@@ -241,7 +313,7 @@ func (a *Service) AppendUserMessage(ctx context.Context, sessionID, content stri
 // LLMFactoryFunc 公开 LLM 工厂（RAGAsk 等复用）。
 func (a *Service) LLMFactoryFunc() (provider.LLMProvider, error) {
 	return a.llm()
-}// AgentChatCancel 取消进行中的流式请求。
+} // AgentChatCancel 取消进行中的流式请求。
 func (a *Service) AgentChatCancel(ctx context.Context, req AgentChatCancelReq) (*CancelResult, error) {
 	if _, err := a.Repo.GetAgentSession(ctx, req.WorkspaceID, req.SessionID); err != nil {
 		return nil, err

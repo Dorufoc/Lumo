@@ -40,20 +40,20 @@ type SubmissionDraft struct {
 
 // PracticeSession 是练习会话 DTO。
 type PracticeSession struct {
-	ID           string               `json:"id"`
-	WorkspaceID  string               `json:"workspace_id"`
-	UserID       string               `json:"user_id"`
-	Mode         string               `json:"mode"`
-	Status       string               `json:"status"`
-	Questions    []*PracticeQuestion  `json:"questions"`
-	Skipped      []string             `json:"skipped"`
-	TimeLimitSec *int                 `json:"time_limit_sec"`
-	StartedAt    *string              `json:"started_at"`
-	SubmittedAt  *string              `json:"submitted_at"`
-	Drafts       []*SubmissionDraft   `json:"drafts,omitempty"`
-	Version      int                  `json:"version"`
-	CreatedAt    string               `json:"created_at"`
-	UpdatedAt    string               `json:"updated_at"`
+	ID           string              `json:"id"`
+	WorkspaceID  string              `json:"workspace_id"`
+	UserID       string              `json:"user_id"`
+	Mode         string              `json:"mode"`
+	Status       string              `json:"status"`
+	Questions    []*PracticeQuestion `json:"questions"`
+	Skipped      []string            `json:"skipped"`
+	TimeLimitSec *int                `json:"time_limit_sec"`
+	StartedAt    *string             `json:"started_at"`
+	SubmittedAt  *string             `json:"submitted_at"`
+	Drafts       []*SubmissionDraft  `json:"drafts,omitempty"`
+	Version      int                 `json:"version"`
+	CreatedAt    string              `json:"created_at"`
+	UpdatedAt    string              `json:"updated_at"`
 }
 
 // GradingResult 是判分结果 DTO（与 API 文档第 5 章一致）。
@@ -72,11 +72,11 @@ type GradingResult struct {
 
 // ResultQuestion 是结果页每题详情。
 type ResultQuestion struct {
-	OrderNo           int             `json:"order_no"`
-	QuestionID        string          `json:"question_id"`
-	QuestionVersionID string          `json:"question_version_id"`
-	Type              string          `json:"type"`
-	Payload           json.RawMessage `json:"payload"` // 提交后含答案与解析
+	OrderNo           int              `json:"order_no"`
+	QuestionID        string           `json:"question_id"`
+	QuestionVersionID string           `json:"question_version_id"`
+	Type              string           `json:"type"`
+	Payload           json.RawMessage  `json:"payload"` // 提交后含答案与解析
 	Submission        *SubmissionDraft `json:"submission"`
 	Grading           *GradingResult   `json:"grading"`
 	IsWrong           bool             `json:"is_wrong"`
@@ -93,20 +93,20 @@ type WrongAnswerItem struct {
 
 // ReviewAction 是结果中的复习动作。
 type ReviewAction struct {
-	ReviewCardID string `json:"review_card_id"`
+	ReviewCardID  string `json:"review_card_id"`
 	WrongAnswerID string `json:"wrong_answer_id"`
 	DueAt         string `json:"due_at"`
 }
 
 // PracticeResult 是练习结果。
 type PracticeResult struct {
-	SessionID     string              `json:"session_id"`
-	Status        string              `json:"status"`
-	TotalScore    float64             `json:"total_score"`
-	MaxScore      float64             `json:"max_score"`
-	Questions     []*ResultQuestion   `json:"questions"`
-	WrongAnswers  []*WrongAnswerItem  `json:"wrong_answers"`
-	ReviewActions []*ReviewAction     `json:"review_actions"`
+	SessionID     string             `json:"session_id"`
+	Status        string             `json:"status"`
+	TotalScore    float64            `json:"total_score"`
+	MaxScore      float64            `json:"max_score"`
+	Questions     []*ResultQuestion  `json:"questions"`
+	WrongAnswers  []*WrongAnswerItem `json:"wrong_answers"`
+	ReviewActions []*ReviewAction    `json:"review_actions"`
 }
 
 // PracticeService 实现练习会话、判分与结果用例。
@@ -125,6 +125,9 @@ type PracticeStartReq struct {
 // PracticeStart 创建练习会话并固定题目版本快照。
 func (p *PracticeService) PracticeStart(ctx context.Context, req PracticeStartReq) (*PracticeSession, error) {
 	if err := p.s.assertWorkspace(ctx, req.WorkspaceID); err != nil {
+		return nil, err
+	}
+	if err := p.s.assertUserActive(ctx, req.UserID); err != nil {
 		return nil, err
 	}
 	if req.Mode == "" {
@@ -212,12 +215,12 @@ func (p *PracticeService) PracticeGet(ctx context.Context, req PracticeGetReq) (
 
 // PracticeSaveAnswerReq 保存草稿请求。
 type PracticeSaveAnswerReq struct {
-	WorkspaceID        string          `json:"workspace_id"`
-	SessionID          string          `json:"session_id"`
-	QuestionVersionID  string          `json:"question_version_id"`
-	Answer             json.RawMessage `json:"answer"`
-	ClientSequence     int             `json:"client_sequence"`
-	IdempotencyKey     string          `json:"idempotency_key"`
+	WorkspaceID       string          `json:"workspace_id"`
+	SessionID         string          `json:"session_id"`
+	QuestionVersionID string          `json:"question_version_id"`
+	Answer            json.RawMessage `json:"answer"`
+	ClientSequence    int             `json:"client_sequence"`
+	IdempotencyKey    string          `json:"idempotency_key"`
 }
 
 // PracticeSaveAnswer 保存答案草稿（客户端序号单调）。
@@ -231,6 +234,9 @@ func (p *PracticeService) PracticeSaveAnswer(ctx context.Context, req PracticeSa
 	}
 	if session == nil {
 		return nil, domain.NotFound("练习会话不存在")
+	}
+	if err := p.s.assertUserActive(ctx, session.UserID); err != nil {
+		return nil, err
 	}
 	if session.Status != "answering" {
 		return nil, domain.InvalidState("会话状态 %s 不允许保存答案", session.Status)
@@ -332,6 +338,9 @@ func (p *PracticeService) PracticeSkipQuestion(ctx context.Context, req Practice
 	if session == nil {
 		return nil, domain.NotFound("练习会话不存在")
 	}
+	if err := p.s.assertUserActive(ctx, session.UserID); err != nil {
+		return nil, err
+	}
 	if session.Status != "answering" {
 		return nil, domain.InvalidState("会话状态 %s 不允许跳过", session.Status)
 	}
@@ -396,6 +405,9 @@ func (p *PracticeService) doSubmit(ctx context.Context, wsID, sessionID string, 
 	}
 	if session == nil {
 		return nil, domain.NotFound("练习会话不存在")
+	}
+	if err := p.s.assertUserActive(ctx, session.UserID); err != nil {
+		return nil, err
 	}
 	if session.Status != "answering" {
 		return nil, domain.InvalidState("会话状态 %s 不允许提交", session.Status)
@@ -738,6 +750,19 @@ func (p *PracticeService) GradingRequestReview(ctx context.Context, req GradingR
 	}
 	if g == nil {
 		return nil, domain.NotFound("判分记录不存在")
+	}
+	// 归属校验：通过 submission → session → workspace，并校验用户活跃
+	sub, err := p.s.Repo.GetSubmission(ctx, g.SubmissionID)
+	if err != nil {
+		return nil, err
+	}
+	if sub == nil || !p.submissionInWorkspace(ctx, sub.SessionID, req.WorkspaceID) {
+		return nil, domain.NotFound("判分记录不存在")
+	}
+	if sess, err := p.s.Repo.GetSession(ctx, req.WorkspaceID, sub.SessionID); err == nil && sess != nil {
+		if err := p.s.assertUserActive(ctx, sess.UserID); err != nil {
+			return nil, err
+		}
 	}
 	if err := p.s.Repo.UpdateGradingReview(ctx, req.GradingID, req.Reason); err != nil {
 		return nil, err

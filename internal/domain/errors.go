@@ -78,7 +78,10 @@ func AsError(err error) *Error {
 }
 
 // Common 构造器集合，方便调用方使用。
-func NotFound(format string, args ...any) *Error   { return E(CodeNotFound, format, args...) }
+func NotFound(format string, args ...any) *Error { return E(CodeNotFound, format, args...) }
+func Unauthorized(format string, args ...any) *Error {
+	return E(CodeUnauthorized, format, args...)
+}
 func InvalidArg(format string, args ...any) *Error { return E(CodeInvalidArgument, format, args...) }
 func InvalidState(format string, args ...any) *Error {
 	return E(CodeInvalidState, format, args...)

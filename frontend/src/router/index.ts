@@ -24,6 +24,7 @@ const router = createRouter({
     { path: '/classes', name: 'classes', component: () => import('@/views/ClassesView.vue'), meta: { title: '班级', roles: ['teacher', 'student'] } },
     { path: '/assignments', name: 'assignments', component: () => import('@/views/AssignmentsView.vue'), meta: { title: '作业', roles: ['teacher', 'student'] } },
     { path: '/settings', name: 'settings', component: () => import('@/views/SettingsView.vue'), meta: { title: '设置与数据' } },
+    { path: '/admin', name: 'admin', component: () => import('@/views/AdminView.vue'), meta: { title: '管理端' } },
     { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
   ],
 })
