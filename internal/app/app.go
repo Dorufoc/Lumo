@@ -211,6 +211,11 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "ParentSettingsUpdate", a.Svc.Family.ParentSettingsUpdate)
 	bind(srv, "FamilyViewGet", a.Svc.Family.FamilyViewGet)
 
+	// 知识图谱（API 文档 7.16 / 完整设计文档 4.19）
+	bind(srv, "KnowledgeGraphGet", a.Svc.KnowledgeGraph.KnowledgeGraphGet)
+	bind(srv, "MasterySnapshotList", a.Svc.KnowledgeGraph.MasterySnapshotList)
+	bind(srv, "MasteryExplain", a.Svc.KnowledgeGraph.MasteryExplain)
+
 	// 班级管理（API 文档 7.11 / 完整设计文档 4.22）
 	bind(srv, "ClassCreate", a.Svc.Classes.ClassCreate)
 	bind(srv, "ClassList", a.Svc.Classes.ClassList)

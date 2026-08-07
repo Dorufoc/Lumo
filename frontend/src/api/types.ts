@@ -1584,3 +1584,82 @@ export interface FamilyViewReq {
   student_user_id?: string
 }
 
+// ---------- 知识图谱（API 文档 7.16 / 完整设计文档 4.19） ----------
+
+export interface KnowledgeGraphGetReq {
+  workspace_id: string
+  user_id?: string
+}
+
+export interface KnowledgeGraphNode {
+  id: string
+  name: string
+  level: number
+  parent_id?: string
+  /** 掌握度 0-1；无证据时不返回。 */
+  mastery?: number
+  sample_size?: number
+}
+
+export interface KnowledgeGraphEdge {
+  from: string
+  to: string
+  /** parent | prerequisite | related */
+  type: string
+  /** manual | ai */
+  source: string
+}
+
+export interface KnowledgeGraph {
+  nodes: KnowledgeGraphNode[]
+  edges: KnowledgeGraphEdge[]
+  truncated: boolean
+}
+
+export interface MasterySnapshotListReq {
+  user_id: string
+  knowledge_id?: string
+  cursor?: string
+  limit?: number
+}
+
+export interface MasterySnapshotListItem {
+  id: string
+  user_id: string
+  knowledge_id: string
+  knowledge_name: string
+  mastery_score: number
+  sample_size: number
+  computed_at: string
+}
+
+export interface MasterySnapshotPage {
+  items: MasterySnapshotListItem[]
+  next_cursor: string
+  has_more: boolean
+}
+
+export interface MasteryExplainReq {
+  user_id: string
+  knowledge_id: string
+}
+
+export interface MasteryEvidence {
+  knowledge_id: string
+  /** grading | review */
+  type: string
+  value: number
+  weight: number
+  occurred_at: string
+}
+
+export interface MasteryExplanation {
+  knowledge_id: string
+  knowledge_name: string
+  mastery_score: number
+  sample_size: number
+  formula_version: string
+  formula_description: string
+  evidence: MasteryEvidence[]
+}
+
