@@ -25,7 +25,27 @@ export interface Settings {
   workspace_id: string
   settings: Record<string, unknown>
   provider_status: Record<string, { configured: boolean; model?: string }>
+  cloud_server: { configured: boolean; mode: 'inprocess' | 'cloud' }
   version: number
+}
+
+export interface SyncCloudPushReq {
+  workspace_id: string
+  user_id?: string
+}
+
+export interface SyncPushItemResult {
+  operation_id: string
+  result: 'accepted' | 'duplicate' | 'conflict' | 'rejected'
+  server_sequence?: number
+  server_version?: number
+  conflict_copy?: unknown
+}
+
+export interface SyncPushResult {
+  workspace_id: string
+  items: SyncPushItemResult[]
+  server_time: string
 }
 
 export interface KnowledgeNode {

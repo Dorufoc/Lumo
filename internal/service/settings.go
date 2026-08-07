@@ -13,7 +13,9 @@ type Settings struct {
 	WorkspaceID    string                    `json:"workspace_id"`
 	Settings       json.RawMessage           `json:"settings"`
 	ProviderStatus map[string]ProviderStatus `json:"provider_status"`
-	Version        int                       `json:"version"`
+	// CloudServer 云同步服务端配置状态（已配置/未配置 + 有效模式，不返回 token）。
+	CloudServer CloudServerStatus `json:"cloud_server"`
+	Version     int               `json:"version"`
 }
 
 // ProviderStatus 描述 Provider 配置状态（不返回密钥）。
@@ -47,6 +49,7 @@ func (sv *SettingsService) SettingsGet(ctx context.Context, req SettingsGetReq) 
 		WorkspaceID:    req.WorkspaceID,
 		Settings:       row.Settings,
 		ProviderStatus: status,
+		CloudServer:    sv.s.cloudServerStatus(row.Settings),
 		Version:        row.Version,
 	}, nil
 }
@@ -82,6 +85,7 @@ func (sv *SettingsService) SettingsUpdate(ctx context.Context, req SettingsUpdat
 		WorkspaceID:    req.WorkspaceID,
 		Settings:       row.Settings,
 		ProviderStatus: status,
+		CloudServer:    sv.s.cloudServerStatus(row.Settings),
 		Version:        row.Version,
 	}, nil
 }

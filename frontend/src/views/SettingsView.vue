@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { call, localizedMessageOf } from '@/api/client'
 import { familyInviteCreate, familyInviteGet, familyUnbind } from '@/api/family'
-import type { FamilyOverview, Settings } from '@/api/types'
+import type { FamilyOverview, Settings, SyncPushResult } from '@/api/types'
 import { useI18nStore } from '@/stores/i18n'
 import { useSessionStore } from '@/stores/session'
 
@@ -116,13 +116,59 @@ async function doSync() {
       platform: 'web',
       app_version: '2.0.0',
     })
-    await call('SyncPush', { workspace_id: session.workspaceId })
+    if (cloudMode.value === 'cloud' && cloudServer.value.configured) {
+      // 云同步模式：推送到 cloud-server（未配置 token 时后端返回 FEATURE_DISABLED，此处已拦截）。
+      const res = await call<SyncPushResult>('SyncCloudPush', {
+        workspace_id: session.workspaceId,
+        user_id: session.userId,
+      })
+      const conflicts = (res?.items ?? []).filter((i) => i.result === 'conflict').length
+      info.value = conflicts > 0 ? i18n.t('settings.syncConflict', { count: conflicts }) : i18n.t('settings.syncDone')
+    } else {
+      // 本地默认：in-process SyncService
+      await call('SyncPush', { workspace_id: session.workspaceId })
+      info.value = syncStatus.value?.pending_count === 0 ? i18n.t('settings.syncDone') : i18n.t('settings.syncDoneShort')
+    }
     await loadSyncStatus()
-    info.value = syncStatus.value?.pending_count === 0 ? i18n.t('settings.syncDone') : i18n.t('settings.syncDoneShort')
   } catch (e) {
     error.value = localizedMessageOf(e)
   } finally {
     syncing.value = false
+  }
+}
+
+// ---------- 云同步（Todo 34：可切换 cloud-server）----------
+const cloudServer = ref<{ configured: boolean; mode: 'inprocess' | 'cloud' }>({ configured: false, mode: 'inprocess' })
+const cloudMode = ref<'inprocess' | 'cloud'>('inprocess')
+const cloudSaving = ref(false)
+
+function loadCloudStatus() {
+  cloudServer.value = session.settings?.cloud_server ?? { configured: false, mode: 'inprocess' }
+  const settings = (session.settings?.settings as Record<string, unknown> | undefined) ?? {}
+  // 有效模式：仅在配置了 token 时允许 cloud；否则强制回退 inprocess（与后端计算一致）。
+  cloudMode.value = settings.sync_mode === 'cloud' && cloudServer.value.configured ? 'cloud' : 'inprocess'
+}
+
+async function toggleCloudMode() {
+  if (cloudSaving.value) return
+  const next: 'inprocess' | 'cloud' = cloudMode.value === 'cloud' ? 'inprocess' : 'cloud'
+  if (next === 'cloud' && !cloudServer.value.configured) return // 未配置不允许开启
+  cloudSaving.value = true
+  error.value = ''
+  try {
+    const settings = (session.settings?.settings as Record<string, unknown> | undefined) ?? {}
+    await call('SettingsUpdate', {
+      workspace_id: session.workspaceId,
+      version: session.settings?.version ?? 0,
+      settings: { ...settings, sync_mode: next },
+    })
+    await session.refreshSettings()
+    loadCloudStatus()
+    info.value = next === 'cloud' ? i18n.t('settings.cloudEnabled') : i18n.t('settings.cloudDisabled')
+  } catch (e) {
+    error.value = localizedMessageOf(e)
+  } finally {
+    cloudSaving.value = false
   }
 }
 
@@ -272,6 +318,7 @@ function formatExpires(expiresAt: string): string {
 onMounted(() => {
   void loadSettings()
   void loadSyncStatus()
+  loadCloudStatus()
   if (isStudent.value) void loadFamily()
 })
 </script>
@@ -489,6 +536,28 @@ onMounted(() => {
             {{ syncing ? $t('settings.syncing') : $t('settings.syncNow') }}
           </button>
         </div>
+      </div>
+
+      <!-- 云同步服务端（Todo 34：本地默认 in-process，可切换 cloud-server） -->
+      <div class="card">
+        <div class="card-title">{{ $t('settings.cloudServerTitle') }}</div>
+        <p class="text-secondary mb-3">{{ $t('settings.cloudServerHint') }}</p>
+        <div class="flex gap-3" style="align-items: center; flex-wrap: wrap">
+          <label style="display: inline-flex; align-items: center; gap: 8px">
+            <input
+              type="checkbox"
+              :checked="cloudMode === 'cloud'"
+              :disabled="cloudSaving || !cloudServer.configured"
+              @change="toggleCloudMode"
+            />
+            <span>{{ $t('settings.cloudServerEnabled') }}</span>
+          </label>
+          <span class="badge" :class="cloudServer.configured ? 'badge-success' : 'badge-error'">
+            {{ cloudServer.configured ? $t('settings.cloudServerConfigured') : $t('settings.cloudServerNotConfigured') }}
+          </span>
+          <span v-if="cloudMode === 'cloud'" class="badge badge-primary">{{ $t('settings.cloudServerActive') }}</span>
+        </div>
+        <p v-if="!cloudServer.configured" class="hint mt-2">{{ $t('settings.cloudServerMissingToken') }}</p>
       </div>
 
       <div class="card">

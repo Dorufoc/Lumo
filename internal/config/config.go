@@ -28,6 +28,11 @@ type Config struct {
 	// ReadTimeoutSec / WriteTimeoutSec HTTP 超时。
 	ReadTimeoutSec  int `json:"read_timeout_sec"`
 	WriteTimeoutSec int `json:"write_timeout_sec"`
+	// CloudServerToken 云同步服务端访问令牌（读环境变量 CLOUD_SERVER_TOKEN，与 cloud-server
+	// 二进制同源；空表示未配置，客户端不发起 cloud 同步、回退 in-process SyncService）。
+	CloudServerToken string `json:"-"`
+	// CloudServerURL 云同步服务端基础地址（读环境变量 LUMO_CLOUD_URL，默认 http://127.0.0.1:8788）。
+	CloudServerURL string `json:"-"`
 }
 
 // Default 返回默认配置。
@@ -75,6 +80,14 @@ func Load() Config {
 	if cfg.BackupsDir == "" {
 		cfg.BackupsDir = filepath.Join(cfg.DataDir, "backups")
 	}
+	// 云同步配置只来自环境变量（不落配置文件）。
+	cfg.CloudServerToken = loadCloudToken()
+	if cfg.CloudServerURL == "" {
+		cfg.CloudServerURL = "http://127.0.0.1:8788"
+	}
+	if v := os.Getenv("LUMO_CLOUD_URL"); v != "" {
+		cfg.CloudServerURL = v
+	}
 	return cfg
 }
 
@@ -94,4 +107,9 @@ func defaultDataDir() string {
 		base = "."
 	}
 	return filepath.Join(base, "lumo")
+}
+
+// loadCloudToken 读取云同步访问令牌（与 cloud-server 二进制同源环境变量）。
+func loadCloudToken() string {
+	return os.Getenv("CLOUD_SERVER_TOKEN")
 }

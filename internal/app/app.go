@@ -327,6 +327,8 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "SyncPush", a.Svc.Sync.SyncPushLocal)
 	bind(srv, "SyncPull", a.Svc.Sync.SyncPull)
 	bind(srv, "SyncStatusGet", a.Svc.Sync.SyncStatusGet)
+	// 云同步（Todo 34）：推送到 cmd/cloud-server 独立二进制；未配置 token 时回退 in-process。
+	bind(srv, "SyncCloudPush", a.Svc.Sync.SyncCloudPush)
 
 	// 插件（API 文档 7.13 / 完整设计文档 4.24）
 	bind(srv, "PluginInstall", a.Svc.Plugins.PluginInstall)
