@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { localizedMessageOf } from '@/api/client'
-import type { Class, ClassMember } from '@/api/types'
+import type { Class, ClassMember, ClassStats } from '@/api/types'
 import {
   classArchive,
   classCreate,
@@ -12,6 +12,7 @@ import {
   classMemberRemove,
   classUpdate,
 } from '@/api/class'
+import { classStats } from '@/api/stats'
 import { useI18nStore } from '@/stores/i18n'
 import { useSessionStore } from '@/stores/session'
 
@@ -244,6 +245,49 @@ function copyCode() {
   info.value = i18n.t('classes.inviteCopied')
 }
 
+// ---- 班级统计（教师） ----
+const statsOpen = ref('')
+const statsByClass = ref<Record<string, ClassStats | null>>({})
+const statsLoading = ref<Record<string, boolean>>({})
+const statsError = ref<Record<string, string>>({})
+
+const openStats = computed<ClassStats | null>(() => {
+  if (!statsOpen.value) return null
+  return statsByClass.value[statsOpen.value] ?? null
+})
+
+function toggleStats(cls: Class) {
+  if (statsOpen.value === cls.id) {
+    statsOpen.value = ''
+    return
+  }
+  statsOpen.value = cls.id
+  if (statsByClass.value[cls.id] == null && !statsLoading.value[cls.id]) {
+    void loadStats(cls)
+  }
+}
+
+async function loadStats(cls: Class) {
+  statsLoading.value[cls.id] = true
+  statsError.value[cls.id] = ''
+  try {
+    statsByClass.value[cls.id] = await classStats({
+      workspace_id: session.workspaceId,
+      user_id: session.userId,
+      class_id: cls.id,
+    })
+  } catch (e) {
+    statsError.value[cls.id] = localizedMessageOf(e)
+  } finally {
+    statsLoading.value[cls.id] = false
+  }
+}
+
+/** 0~1 浮点 → 百分数（如 0.5 → 50%）。 */
+function pct(v: number): string {
+  return `${Math.round(v * 100)}%`
+}
+
 onMounted(load)
 </script>
 
@@ -340,6 +384,69 @@ onMounted(load)
         <div v-if="isTeacher" class="class-actions">
           <button v-if="cls.status === 'active'" class="btn btn-sm" :disabled="busy" @click="openEdit(cls)">{{ $t('classes.edit') }}</button>
           <button v-if="cls.status === 'active'" class="btn btn-sm btn-danger" :disabled="busy" @click="doArchive(cls)">{{ $t('classes.archive') }}</button>
+          <button class="btn btn-sm" @click="toggleStats(cls)">{{ $t('classes.stats') }}</button>
+        </div>
+
+        <!-- 班级统计（教师） -->
+        <div v-if="isTeacher && statsOpen === cls.id" class="stats-panel">
+          <div class="card-title">{{ $t('classes.statsTitle') }}</div>
+          <div class="hint mb-2">{{ $t('classes.statsSubtitle') }}</div>
+          <div v-if="statsLoading[cls.id]" class="hint">{{ $t('classes.statsLoading') }}</div>
+          <div v-else-if="statsError[cls.id]" class="hint">{{ $t('classes.statsLoadError') }}：{{ statsError[cls.id] }}</div>
+          <template v-else-if="openStats">
+            <div
+              v-if="openStats.student_total === 0 && openStats.submission_total === 0"
+              class="empty"
+            >
+              {{ $t('classes.statsEmpty') }}
+            </div>
+            <template v-else>
+              <div class="grid grid-4">
+                <div class="stat-card">
+                  <div class="stat-value">{{ openStats.student_total }}</div>
+                  <div class="stat-label">{{ $t('classes.statsStudentTotal') }}</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value">{{ openStats.assignment_total }}</div>
+                  <div class="stat-label">{{ $t('classes.statsAssignmentTotal') }}</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value">{{ openStats.submission_total }}</div>
+                  <div class="stat-label">{{ $t('classes.statsSubmissionTotal') }}</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value">{{ pct(openStats.completion_rate) }}</div>
+                  <div class="stat-label">{{ $t('classes.statsCompletionRate') }}</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value">{{ openStats.avg_score }}</div>
+                  <div class="stat-label">{{ $t('classes.statsAvgScore') }}</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value">{{ openStats.max_score }}</div>
+                  <div class="stat-label">{{ $t('classes.statsMaxScore') }}</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-value">{{ pct(openStats.accuracy) }}</div>
+                  <div class="stat-label">{{ $t('classes.statsAccuracy') }}</div>
+                </div>
+              </div>
+              <div class="stats-weak">
+                <div class="card-title">{{ $t('classes.statsWeakTop') }}</div>
+                <div v-if="openStats.weak_top.length === 0" class="empty">{{ $t('classes.statsNoWeak') }}</div>
+                <table v-else class="table">
+                  <tbody>
+                    <tr v-for="w in openStats.weak_top" :key="w.knowledge_id">
+                      <td>{{ w.name }}</td>
+                      <td class="right">
+                        <span class="badge badge-error">{{ w.wrong_count }}</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+          </template>
         </div>
       </div>
     </div>
@@ -488,6 +595,16 @@ onMounted(load)
 .class-actions {
   display: flex;
   gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.stats-panel {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.stats-weak {
   margin-top: var(--space-3);
 }
 

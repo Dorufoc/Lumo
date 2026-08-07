@@ -223,6 +223,9 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "AppealResolve", a.Svc.Appeals.AppealResolve)
 	bind(srv, "AppealList", a.Svc.Appeals.AppealList)
 
+	// 教师统计（API 文档 7.11 / 设计文档 4.22 C6）
+	bind(srv, "ClassStats", a.Svc.Stats.ClassStats)
+
 	// 提醒与通知（API 文档 7.7 / 完整设计文档 4.14）
 	bind(srv, "ReminderUpsert", a.Svc.Reminder.ReminderUpsert)
 	bind(srv, "ReminderTestSend", a.Svc.Reminder.ReminderTestSend)

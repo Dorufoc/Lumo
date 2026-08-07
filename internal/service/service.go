@@ -48,6 +48,7 @@ type Services struct {
 	Classes     *ClassesService
 	Assignments *AssignmentsService
 	Appeals     *AppealsService
+	Stats       *StatsService
 
 	// UserEvents 用户级领域事件总线：领域事件（reminder:triggered 等）经此持久化通知并广播。
 	// app 层将其与 agent.Service.UserEvents 指向同一实例（SSE 订阅端复用），见 app.go。
@@ -106,6 +107,7 @@ func New(repo *repository.Repo, cfg *config.Config) *Services {
 	s.Classes = &ClassesService{s: s}
 	s.Assignments = &AssignmentsService{s: s, Now: time.Now}
 	s.Appeals = &AppealsService{s: s}
+	s.Stats = &StatsService{s: s}
 	// 用户级事件总线由服务层持有；app.New 会把 a.Agent.UserEvents 指向同一实例，
 	// 使服务层发布的事件能被 SSE 订阅者接收（见 internal/app/app.go 注释）。
 	s.UserEvents = agent.NewUserEventBus(repo)

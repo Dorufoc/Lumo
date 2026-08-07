@@ -1339,3 +1339,37 @@ export interface AppealListReq {
   user_id: string
   assignment_id: string
 }
+
+// ---------- 教师统计 ClassStats（API 文档 7.11 / 完整设计文档 4.22 C6） ----------
+
+/** ClassStats 请求（教师/班级创建者；assignment_id 可选按作业过滤）。 */
+export interface ClassStatsReq {
+  workspace_id: string
+  user_id: string
+  class_id: string
+  assignment_id?: string
+}
+
+/** 班级统计响应（完成率/均分/正确率/薄弱知识点 Top）。 */
+export interface ClassStats {
+  class_id: string
+  assignment_id?: string
+  /** 班级活跃学生数。 */
+  student_total: number
+  /** 统计范围作业数。 */
+  assignment_total: number
+  /** 已提交份数。 */
+  submission_total: number
+  /** 已判分份数。 */
+  graded_total: number
+  /** 完成率 = 提交份数/(学生数×作业数)，0~1。 */
+  completion_rate: number
+  /** 均分 = 已判分提交 overall 均值。 */
+  avg_score: number
+  /** 满分 = 已判分提交满分均值。 */
+  max_score: number
+  /** 正确率 = 得分/满分（客观题），0~1。 */
+  accuracy: number
+  /** 薄弱知识点 Top5（按答错次数降序）。 */
+  weak_top: WeakKnowledgeItem[]
+}
