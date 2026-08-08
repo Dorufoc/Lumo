@@ -50,6 +50,7 @@ type Services struct {
 	Appeals        *AppealsService
 	Stats          *StatsService
 	Admin          *AdminService
+	Org            *OrgService
 	Family         *FamilyService
 	KnowledgeGraph *KnowledgeGraphService
 	Share          *ShareService
@@ -118,6 +119,7 @@ func New(repo *repository.Repo, cfg *config.Config) *Services {
 	s.Appeals = &AppealsService{s: s}
 	s.Stats = &StatsService{s: s}
 	s.Admin = &AdminService{s: s}
+	s.Org = &OrgService{s: s}
 	s.Family = &FamilyService{s: s}
 	s.KnowledgeGraph = &KnowledgeGraphService{s: s}
 	s.Share = &ShareService{s: s}

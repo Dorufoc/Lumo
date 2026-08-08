@@ -126,18 +126,25 @@ func (c *ClassesService) requireTeacher(ctx context.Context, wsID, userID, actio
 	if u == nil {
 		return domain.Forbidden("用户不存在")
 	}
-	if u.Role != "teacher" {
+	if u.Role != "teacher" && u.Role != "org_admin" {
 		payload := map[string]any{"forbidden": true, "role": u.Role}
 		if classID != "" {
 			payload["class_id"] = classID
 		}
 		c.s.audit(ctx, wsID, action, "class", classID, payload)
-		return domain.Forbidden("仅教师可执行此操作")
+		return domain.Forbidden("仅教师或组织管理员可执行此操作")
 	}
 	return nil
 }
 
-// assertReadableClass 校验调用者可读班级：本人创建（教师）或为 active 成员（学生）。
+// isOrgAdmin 报告用户是否为组织管理员角色。
+func (c *ClassesService) isOrgAdmin(ctx context.Context, wsID, userID string) bool {
+	u, err := c.s.Repo.GetUser(ctx, wsID, userID)
+	return err == nil && u != nil && u.Role == "org_admin"
+}
+
+// assertReadableClass 校验调用者可读班级：本人创建（教师/组织管理员）、组织管理员（组织内任意班级）
+// 或为 active 成员（学生）。
 func (c *ClassesService) assertReadableClass(ctx context.Context, wsID, userID, classID string) (*repository.ClassRow, error) {
 	if userID == "" {
 		return nil, domain.InvalidArg("user_id 必填")
@@ -155,6 +162,10 @@ func (c *ClassesService) assertReadableClass(ctx context.Context, wsID, userID, 
 	if cls.OwnerUserID == userID {
 		return cls, nil
 	}
+	// 组织管理员可读组织内任意班级。
+	if c.isOrgAdmin(ctx, wsID, userID) {
+		return cls, nil
+	}
 	m, err := c.s.Repo.GetClassMember(ctx, classID, userID)
 	if err != nil {
 		return nil, err
@@ -165,7 +176,7 @@ func (c *ClassesService) assertReadableClass(ctx context.Context, wsID, userID, 
 	return cls, nil
 }
 
-// assertEditableClass 校验调用者可管理班级：教师且为班级创建者。
+// assertEditableClass 校验调用者可管理班级：组织管理员（组织内任意班级）或教师且为班级创建者。
 func (c *ClassesService) assertEditableClass(ctx context.Context, wsID, userID, action, classID string) (*repository.ClassRow, error) {
 	cls, err := c.s.Repo.GetClass(ctx, wsID, classID)
 	if err != nil {
@@ -177,7 +188,8 @@ func (c *ClassesService) assertEditableClass(ctx context.Context, wsID, userID, 
 	if err := c.requireTeacher(ctx, wsID, userID, action, classID); err != nil {
 		return nil, err
 	}
-	if cls.OwnerUserID != userID {
+	// 组织管理员可管理组织内任意班级；教师仅限本人创建的班级。
+	if cls.OwnerUserID != userID && !c.isOrgAdmin(ctx, wsID, userID) {
 		c.s.audit(ctx, wsID, action, "class", classID,
 			map[string]any{"forbidden": true, "reason": "not owner"})
 		return nil, domain.Forbidden("仅班级创建者可管理该班级")
@@ -224,7 +236,7 @@ func (c *ClassesService) doCreate(ctx context.Context, req ClassCreateReq) (*Cla
 	return c.classFromRow(ctx, row), nil
 }
 
-// ClassList 列出当前用户可见班级（教师=创建班级；学生=加入班级）。
+// ClassList 列出当前用户可见班级（教师=创建班级；学生=加入班级；组织管理员=全部班级）。
 func (c *ClassesService) ClassList(ctx context.Context, req ClassListReq) ([]*Class, error) {
 	if err := c.s.assertWorkspace(ctx, req.WorkspaceID); err != nil {
 		return nil, err
@@ -232,7 +244,13 @@ func (c *ClassesService) ClassList(ctx context.Context, req ClassListReq) ([]*Cl
 	if req.UserID == "" {
 		return nil, domain.InvalidArg("user_id 必填")
 	}
-	rows, err := c.s.Repo.ListClassesForUser(ctx, req.WorkspaceID, req.UserID)
+	var rows []*repository.ClassRow
+	var err error
+	if c.isOrgAdmin(ctx, req.WorkspaceID, req.UserID) {
+		rows, err = c.s.Repo.ListClassesInWorkspace(ctx, req.WorkspaceID)
+	} else {
+		rows, err = c.s.Repo.ListClassesForUser(ctx, req.WorkspaceID, req.UserID)
+	}
 	if err != nil {
 		return nil, err
 	}

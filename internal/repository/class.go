@@ -125,6 +125,43 @@ func (r *Repo) RegenerateInviteCode(ctx context.Context, wsID, id, code string) 
 	return r.GetClass(ctx, wsID, id)
 }
 
+// ListClassesInWorkspace 列出工作区全部班级（组织管理员视图）。
+func (r *Repo) ListClassesInWorkspace(ctx context.Context, wsID string) ([]*ClassRow, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT `+classCols+` FROM classes
+		WHERE workspace_id = ? ORDER BY created_at DESC`, wsID)
+	if err != nil {
+		return nil, normalizeErr(err)
+	}
+	defer rows.Close()
+	var out []*ClassRow
+	for rows.Next() {
+		c, err := scanClass(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, normalizeErr(rows.Err())
+}
+
+// ReassignClassOwner 指派班级负责人（组织管理员：教师间转移）。
+func (r *Repo) ReassignClassOwner(ctx context.Context, wsID, id, ownerUserID string) (*ClassRow, error) {
+	res, err := r.db.ExecContext(ctx, `
+		UPDATE classes SET owner_user_id = ?,
+			updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+		WHERE id = ? AND workspace_id = ?`,
+		ownerUserID, id, wsID)
+	if err != nil {
+		return nil, normalizeErr(err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return nil, NotFoundErr("班级", id)
+	}
+	return r.GetClass(ctx, wsID, id)
+}
+
 // ClassMemberRow 是 class_members 表行（0005_student.sql 4.22）。
 type ClassMemberRow struct {
 	ID            string

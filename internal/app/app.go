@@ -309,6 +309,12 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 	bind(srv, "AdminUserDisable", a.Svc.Admin.AdminUserDisable)
 	bind(srv, "AdminAuditList", a.Svc.Admin.AdminAuditList)
 
+	// 组织版（组织-班级-教师层级，Todo 41）：机构元数据 / 组织班级视图 / 指派教师 / 教师列表。
+	bind(srv, "OrgWorkspaceUpdate", a.Svc.Org.OrgWorkspaceUpdate)
+	bind(srv, "OrgClassList", a.Svc.Org.OrgClassList)
+	bind(srv, "OrgClassAssignTeacher", a.Svc.Org.OrgClassAssignTeacher)
+	bind(srv, "OrgTeacherList", a.Svc.Org.OrgTeacherList)
+
 	// 资料与 RAG
 	bind(srv, "DocumentImport", a.Svc.Document.DocumentImport)
 	bind(srv, "DocumentList", a.Svc.Document.DocumentList)

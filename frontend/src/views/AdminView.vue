@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// AdminView.vue 管理端视图：审核队列 / Provider 策略 / 功能开关 / 用户禁用 / 审计日志。
-import { onMounted, ref } from 'vue'
+// AdminView.vue 管理端视图：审核队列 / Provider 策略 / 功能开关 / 用户禁用 / 审计日志 / 组织管理。
+import { computed, onMounted, ref } from 'vue'
 import { call, localizedMessageOf } from '@/api/client'
-import type { AuditEntry, ProviderPolicy, ReviewQueueItem, UserProfile } from '@/api/types'
+import type { AuditEntry, Class, ProviderPolicy, ReviewQueueItem, UserProfile } from '@/api/types'
 import {
   adminAuditList,
   adminFeatureFlagSet,
@@ -11,16 +11,20 @@ import {
   adminReviewList,
   adminUserDisable,
 } from '@/api/admin'
+import { orgClassAssignTeacher, orgClassList, orgTeacherList, orgWorkspaceUpdate } from '@/api/org'
 import { useI18nStore } from '@/stores/i18n'
 import { useSessionStore } from '@/stores/session'
 
 const i18n = useI18nStore()
 const session = useSessionStore()
 
-const tab = ref<'review' | 'policy' | 'flag' | 'users' | 'audit'>('review')
+const tab = ref<'review' | 'policy' | 'flag' | 'users' | 'audit' | 'org'>('review')
 const error = ref('')
 const info = ref('')
 const busy = ref(false)
+
+// 组织管理标签仅对组织管理员/全局管理员可见。
+const canManageOrg = computed(() => session.user?.role === 'org_admin' || session.user?.role === 'admin')
 
 // ---- 审核队列 ----
 const reviewItems = ref<ReviewQueueItem[]>([])
@@ -200,9 +204,89 @@ function fmtJSON(j: string): string {
   return j.length > 120 ? `${j.slice(0, 120)}…` : j
 }
 
+// ---- 组织管理（组织-班级-教师层级） ----
+const orgName = ref('')
+const orgAdminUserId = ref('')
+const orgClasses = ref<Class[]>([])
+const orgTeachers = ref<UserProfile[]>([])
+const orgLoading = ref(false)
+
+const assignMap = ref<Record<string, string>>({})
+
+async function loadOrg() {
+  if (!canManageOrg.value) return
+  orgLoading.value = true
+  error.value = ''
+  try {
+    const ws = await call<{ org_name: string | null; org_admin_user_id: string | null }>('WorkspaceGet', {
+      workspace_id: session.workspaceId,
+    })
+    orgName.value = ws?.org_name ?? ''
+    orgAdminUserId.value = ws?.org_admin_user_id ?? ''
+    orgClasses.value = (await orgClassList({ workspace_id: session.workspaceId, user_id: session.user!.id })) ?? []
+    orgTeachers.value = (await orgTeacherList({ workspace_id: session.workspaceId, user_id: session.user!.id })) ?? []
+  } catch (e) {
+    error.value = localizedMessageOf(e)
+  } finally {
+    orgLoading.value = false
+  }
+}
+
+async function saveOrg() {
+  if (orgName.value.length > 120) {
+    error.value = i18n.t('admin.orgNameInvalid')
+    return
+  }
+  busy.value = true
+  error.value = ''
+  info.value = ''
+  try {
+    await orgWorkspaceUpdate({
+      workspace_id: session.workspaceId,
+      user_id: session.user!.id,
+      org_name: orgName.value,
+      org_admin_user_id: orgAdminUserId.value,
+    })
+    info.value = i18n.t('admin.orgSaved')
+    await loadOrg()
+  } catch (e) {
+    error.value = localizedMessageOf(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function assignTeacher(cls: Class) {
+  const tid = assignMap.value[cls.id]
+  if (!tid) return
+  busy.value = true
+  error.value = ''
+  info.value = ''
+  try {
+    await orgClassAssignTeacher({
+      workspace_id: session.workspaceId,
+      user_id: session.user!.id,
+      class_id: cls.id,
+      teacher_user_id: tid,
+    })
+    info.value = i18n.t('admin.orgAssigned')
+    await loadOrg()
+  } catch (e) {
+    error.value = localizedMessageOf(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+function ownerName(userId: string): string {
+  const t = orgTeachers.value.find((u) => u.id === userId)
+  return t ? t.display_name : userId
+}
+
 onMounted(() => {
   void loadReview()
   void loadUsers()
+  void loadOrg()
 })
 </script>
 
@@ -227,6 +311,7 @@ onMounted(() => {
       <div class="tab" :class="{ active: tab === 'flag' }" @click="tab = 'flag'">{{ $t('admin.tabFlag') }}</div>
       <div class="tab" :class="{ active: tab === 'users' }" @click="tab = 'users'">{{ $t('admin.tabUsers') }}</div>
       <div class="tab" :class="{ active: tab === 'audit' }" @click="tab = 'audit'">{{ $t('admin.tabAudit') }}</div>
+      <div v-if="canManageOrg" class="tab" :class="{ active: tab === 'org' }" @click="tab = 'org'">{{ $t('admin.tabOrg') }}</div>
     </div>
 
     <!-- 审核队列 -->
@@ -416,6 +501,77 @@ onMounted(() => {
           </tbody>
         </table>
       </div>
+    </template>
+
+    <!-- 组织管理（组织-班级-教师层级） -->
+    <template v-if="tab === 'org'">
+      <div v-if="orgLoading" class="text-secondary">{{ $t('common.loading') }}</div>
+      <template v-else>
+        <div class="card">
+          <div class="card-title">{{ $t('admin.tabOrg') }}</div>
+          <p class="text-secondary mb-3">{{ $t('admin.orgName') }} / {{ $t('admin.orgAdmin') }}</p>
+          <div class="form-row">
+            <div class="field">
+              <label>{{ $t('admin.orgName') }}</label>
+              <input v-model="orgName" class="input" maxlength="120" :placeholder="$t('admin.orgNamePlaceholder')" />
+            </div>
+            <div class="field">
+              <label>{{ $t('admin.orgAdmin') }}</label>
+              <input v-model="orgAdminUserId" class="input" :placeholder="$t('admin.orgAdminPlaceholder')" />
+            </div>
+          </div>
+          <div class="flex" style="justify-content: flex-end">
+            <button class="btn btn-primary" :disabled="busy" @click="saveOrg">{{ $t('common.save') }}</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">{{ $t('admin.orgClasses') }}</div>
+          <div v-if="orgClasses.length === 0" class="hint">{{ $t('admin.orgClassEmpty') }}</div>
+          <table v-else class="table">
+            <thead>
+              <tr>
+                <th>{{ $t('admin.orgColName') }}</th>
+                <th>{{ $t('admin.orgColOwner') }}</th>
+                <th>{{ $t('admin.orgColSubject') }}</th>
+                <th>{{ $t('admin.orgColMembers') }}</th>
+                <th>{{ $t('admin.orgAssignTeacher') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="cls in orgClasses" :key="cls.id">
+                <td>{{ cls.name }}</td>
+                <td>{{ ownerName(cls.owner_user_id) }}</td>
+                <td>{{ cls.subject || '–' }}</td>
+                <td>{{ cls.member_count }}</td>
+                <td>
+                  <div class="flex gap-1">
+                    <select v-model="assignMap[cls.id]" class="select" style="max-width: 180px">
+                      <option value="" disabled>{{ $t('admin.orgSelectTeacher') }}</option>
+                      <option v-for="t in orgTeachers" :key="t.id" :value="t.id">
+                        {{ t.display_name }}（{{ t.role }}）
+                      </option>
+                    </select>
+                    <button class="btn btn-sm btn-primary" :disabled="busy || !assignMap[cls.id]" @click="assignTeacher(cls)">
+                      {{ $t('admin.orgAssignTeacher') }}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="card-title">{{ $t('admin.orgTeachers') }}</div>
+          <div v-if="orgTeachers.length === 0" class="hint">{{ $t('admin.orgTeacherEmpty') }}</div>
+          <ul v-else class="plain-list">
+            <li v-for="t in orgTeachers" :key="t.id">
+              {{ t.display_name }}（{{ t.role }}）<span class="text-secondary">· {{ t.id }}</span>
+            </li>
+          </ul>
+        </div>
+      </template>
     </template>
   </div>
 </template>

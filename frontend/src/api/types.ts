@@ -1519,6 +1519,36 @@ export interface AuditPage {
   items: AuditEntry[]
 }
 
+// ---------- 组织版（API 文档 7.12 / 完整设计文档 11.9.5） ----------
+
+/** OrgWorkspaceUpdateReq 更新机构元数据请求。 */
+export interface OrgWorkspaceUpdateReq {
+  workspace_id: string
+  user_id: string
+  org_name?: string
+  org_admin_user_id?: string
+}
+
+/** OrgClassListReq 组织班级列表请求。 */
+export interface OrgClassListReq {
+  workspace_id: string
+  user_id: string
+}
+
+/** OrgClassAssignTeacherReq 指派班级负责人请求。 */
+export interface OrgClassAssignTeacherReq {
+  workspace_id: string
+  user_id: string
+  class_id: string
+  teacher_user_id: string
+}
+
+/** OrgTeacherListReq 组织教师列表请求。 */
+export interface OrgTeacherListReq {
+  workspace_id: string
+  user_id: string
+}
+
 // ---------- 家庭绑定与家长模式（API 文档 7.10 / 完整设计文档 4.21） ----------
 
 /** 家庭绑定 DTO。 */

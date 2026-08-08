@@ -7,22 +7,25 @@ import (
 	"lumo/internal/domain"
 )
 
-// WorkspaceRow 是 workspaces 表的行映射。
+// WorkspaceRow 是 workspaces 表的行映射（0008 起含 org 元数据列）。
 type WorkspaceRow struct {
-	ID        string
-	Name      string
-	OwnerType string
-	CreatedAt string
-	UpdatedAt string
-	DeletedAt *string
-	Version   int
+	ID             string
+	Name           string
+	OwnerType      string
+	OrgName        *string
+	OrgAdminUserID *string
+	CreatedAt      string
+	UpdatedAt      string
+	DeletedAt      *string
+	Version        int
 }
 
-const workspaceCols = `id, name, owner_type, created_at, updated_at, deleted_at, version`
+const workspaceCols = `id, name, owner_type, org_name, org_admin_user_id, created_at, updated_at, deleted_at, version`
 
 func scanWorkspace(row interface{ Scan(...any) error }) (*WorkspaceRow, error) {
 	var w WorkspaceRow
-	if err := row.Scan(&w.ID, &w.Name, &w.OwnerType, &w.CreatedAt, &w.UpdatedAt, &w.DeletedAt, &w.Version); err != nil {
+	if err := row.Scan(&w.ID, &w.Name, &w.OwnerType, &w.OrgName, &w.OrgAdminUserID,
+		&w.CreatedAt, &w.UpdatedAt, &w.DeletedAt, &w.Version); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -37,6 +40,18 @@ func (r *Repo) CreateWorkspace(ctx context.Context, w *WorkspaceRow) error {
 		INSERT INTO workspaces (id, name, owner_type, version)
 		VALUES (?, ?, ?, 1)`, w.ID, w.Name, w.OwnerType)
 	return normalizeErr(err)
+}
+
+// UpdateWorkspaceOrg 更新工作区组织元数据（org_name/org_admin_user_id，空串清空）。
+func (r *Repo) UpdateWorkspaceOrg(ctx context.Context, id string, orgName, orgAdminUserID *string) (*WorkspaceRow, error) {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE workspaces SET org_name = ?, org_admin_user_id = ?,
+			updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), version = version + 1
+		WHERE id = ? AND deleted_at IS NULL`, orgName, orgAdminUserID, id)
+	if err != nil {
+		return nil, normalizeErr(err)
+	}
+	return r.GetWorkspace(ctx, id)
 }
 
 // GetWorkspace 按 ID 获取未删除工作区。

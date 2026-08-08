@@ -17,13 +17,15 @@ import (
 
 // Workspace 是工作区 DTO。
 type Workspace struct {
-	ID        string  `json:"id"`
-	Name      string  `json:"name"`
-	OwnerType string  `json:"owner_type"`
-	CreatedAt string  `json:"created_at"`
-	UpdatedAt string  `json:"updated_at"`
-	DeletedAt *string `json:"deleted_at"`
-	Version   int     `json:"version"`
+	ID             string  `json:"id"`
+	Name           string  `json:"name"`
+	OwnerType      string  `json:"owner_type"`
+	OrgName        *string `json:"org_name"`
+	OrgAdminUserID *string `json:"org_admin_user_id"`
+	CreatedAt      string  `json:"created_at"`
+	UpdatedAt      string  `json:"updated_at"`
+	DeletedAt      *string `json:"deleted_at"`
+	Version        int     `json:"version"`
 }
 
 // UserProfile 是用户资料 DTO。
@@ -269,8 +271,8 @@ func (w *WorkspaceService) UserCreate(ctx context.Context, req UserCreateReq) (*
 	if role == "" {
 		role = "student"
 	}
-	if role != "student" && role != "teacher" && role != "admin" {
-		return nil, domain.InvalidArg("role 仅允许 student/teacher/admin")
+	if role != "student" && role != "teacher" && role != "admin" && role != "org_admin" {
+		return nil, domain.InvalidArg("role 仅允许 student/teacher/admin/org_admin")
 	}
 	u := &repository.UserRow{
 		ID: NewID(), WorkspaceID: req.WorkspaceID, DisplayName: req.DisplayName,
@@ -330,6 +332,7 @@ func (w *WorkspaceService) UserUpdateProfile(ctx context.Context, req UserUpdate
 func workspaceFromRow(r *repository.WorkspaceRow) *Workspace {
 	return &Workspace{
 		ID: r.ID, Name: r.Name, OwnerType: r.OwnerType,
+		OrgName: r.OrgName, OrgAdminUserID: r.OrgAdminUserID,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, DeletedAt: r.DeletedAt, Version: r.Version,
 	}
 }
