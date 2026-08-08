@@ -28,6 +28,8 @@ const zhCN = {
     webhooks: 'Webhook',
     community: '社区',
     requests: '求题请求',
+    openMenu: '打开菜单',
+    closeMenu: '关闭菜单',
     footer: '本地优先 · 数据保存在本机',
   },
   common: {

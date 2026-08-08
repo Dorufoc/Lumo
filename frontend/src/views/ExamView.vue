@@ -376,7 +376,7 @@ onBeforeUnmount(() => {
 
     <!-- 新建试卷弹窗 -->
     <div v-if="showCreate" class="modal-mask" @click.self="showCreate = false">
-      <div class="card" style="width: 640px; margin: auto; max-height: 80vh; overflow-y: auto">
+      <div class="card" style="width: min(640px, 92vw); margin: auto; max-height: 80vh; overflow-y: auto">
         <h3>{{ $t('exam.createPaper') }}</h3>
         <div class="flex gap-2 mb-3">
           <button class="btn btn-sm" :class="{ 'btn-primary': createTab === 'manual' }" @click="createTab = 'manual'">{{ $t('exam.manualTab') }}</button>
@@ -441,7 +441,7 @@ onBeforeUnmount(() => {
 
     <!-- 提交确认 -->
     <div v-if="confirmSubmit" class="modal-mask" @click.self="confirmSubmit = false">
-      <div class="card" style="width: 400px; margin: auto">
+      <div class="card" style="width: min(400px, 92vw); margin: auto">
         <h3>{{ $t('exam.submitNow') }}</h3>
         <p class="text-secondary">{{ $t('practice.confirmBodyNote') }}</p>
         <div class="flex gap-3" style="justify-content: flex-end">

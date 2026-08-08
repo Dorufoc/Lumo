@@ -30,6 +30,8 @@ export const enUS: Messages = {
     webhooks: 'Webhooks',
     community: 'Community',
     requests: 'Request Questions',
+    openMenu: 'Open menu',
+    closeMenu: 'Close menu',
     footer: 'Local-first · Data stays on this device',
   },
   common: {

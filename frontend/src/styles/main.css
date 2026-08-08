@@ -128,6 +128,88 @@ textarea {
   min-width: 0;
 }
 
+/* 移动端顶栏与抽屉导航（≤767px 生效，完整设计文档 7.5.6） */
+.mobile-header {
+  display: none;
+  align-items: center;
+  gap: var(--space-3);
+  height: 56px;
+  flex-shrink: 0;
+  padding: 0 var(--space-4);
+  background: var(--color-bg-glass-sidebar);
+  border-bottom: 1px solid var(--sidebar-border);
+}
+.menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: transparent;
+  color: var(--sidebar-text-strong);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.menu-btn:hover {
+  color: var(--color-primary);
+}
+.hamburger {
+  position: relative;
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 2px;
+}
+.hamburger::before,
+.hamburger::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 22px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 2px;
+}
+.hamburger::before { top: -7px; }
+.hamburger::after { top: 7px; }
+.mobile-brand {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--sidebar-text-strong);
+}
+
+.drawer-mask {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 90;
+  background: var(--overlay);
+}
+.drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 91;
+  display: flex;
+  flex-direction: column;
+  width: min(264px, 84vw);
+  padding: var(--space-4) 0;
+  background: var(--color-bg-glass-sidebar);
+  backdrop-filter: blur(var(--backdrop-blur-sidebar));
+  -webkit-backdrop-filter: blur(var(--backdrop-blur-sidebar));
+  color: var(--sidebar-text);
+  box-shadow: var(--shadow-md);
+}
+.drawer .nav-item {
+  min-height: 44px;
+  padding: 12px var(--space-4);
+}
+
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -179,10 +261,23 @@ textarea {
   .grid-4 { grid-template-columns: repeat(2, 1fr); }
   .grid-3 { grid-template-columns: repeat(2, 1fr); }
 }
-@media (max-width: 760px) {
-  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+/* 平板 768–1023：侧边栏折叠为 64px 图标栏（7.5.6） */
+@media (min-width: 768px) and (max-width: 1023px) {
   .sidebar { width: 64px; }
   .sidebar-brand span, .nav-item span, .sidebar-footer { display: none; }
+  .sidebar-nav { padding: 0; }
+}
+/* 移动 ≤767：单列网格 + 抽屉式导航（7.5.6） */
+@media (max-width: 767px) {
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .app-shell { flex-direction: column; }
+  .sidebar { display: none; }
+  .mobile-header { display: flex; }
+  .main { padding: var(--space-4); }
+  .nav-item { min-height: 44px; }
+  .btn { min-height: 44px; }
+  .card:has(.table) { overflow-x: auto; }
+  .modal-mask .card { max-width: 92vw; }
 }
 
 /* 按钮 */

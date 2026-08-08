@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
 
@@ -47,15 +47,62 @@ const visibleNav = computed(() => {
 const isActive = (n: NavItem) =>
   route.name === n.name || (n.name === 'practice' && route.name === 'result')
 
-// 侧边栏需读取 provider_status（tts/asr 配置态）决定口语入口显隐；
-// 若会话尚未加载过设置（如直接深链进入），补一次加载，不影响现有逻辑。
+// 移动端抽屉导航（≤767px，设计文档 7.5.6）：汉堡展开 / 遮罩与 Esc 关闭 / 锁定 body 滚动。
+const drawerOpen = ref(false)
+const menuBtn = ref<HTMLButtonElement | null>(null)
+const drawerEl = ref<HTMLElement | null>(null)
+
+const openDrawer = () => {
+  drawerOpen.value = true
+}
+const closeDrawer = () => {
+  drawerOpen.value = false
+}
+
+const onKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && drawerOpen.value) closeDrawer()
+}
+
 onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  // 侧边栏需读取 provider_status（tts/asr 配置态）决定口语入口显隐；
+  // 若会话尚未加载过设置（如直接深链进入），补一次加载，不影响现有逻辑。
   if (!session.settings && session.workspace) void session.refreshSettings()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+})
+
+watch(drawerOpen, async (open) => {
+  document.body.style.overflow = open ? 'hidden' : ''
+  // 焦点管理：打开聚焦面板，关闭聚焦汉堡（7.5.6）
+  if (open) {
+    await nextTick()
+    drawerEl.value?.focus()
+  } else {
+    menuBtn.value?.focus()
+  }
+})
+
+// 路由切换后自动关闭抽屉（避免跳转后遮罩残留）。
+watch(() => route.fullPath, () => {
+  if (drawerOpen.value) closeDrawer()
 })
 </script>
 
 <template>
   <div class="app-shell">
+    <!-- 移动端顶栏（≤767px 显示，7.5.6） -->
+    <header class="mobile-header">
+      <button ref="menuBtn" class="menu-btn" type="button"
+        :aria-label="drawerOpen ? $t('nav.closeMenu') : $t('nav.openMenu')"
+        :aria-expanded="drawerOpen" @click="drawerOpen ? closeDrawer() : openDrawer()">
+        <span class="hamburger" aria-hidden="true"></span>
+      </button>
+      <span class="mobile-brand">Lumo AI</span>
+    </header>
+
     <aside class="sidebar">
       <div class="sidebar-brand"><span>Lumo AI</span></div>
       <nav class="sidebar-nav">
@@ -65,6 +112,19 @@ onMounted(() => {
       </nav>
       <div class="sidebar-footer">{{ $t('nav.footer') }}</div>
     </aside>
+
+    <!-- 抽屉式导航（移动端，7.5.6） -->
+    <div v-if="drawerOpen" class="drawer-mask" @click="closeDrawer"></div>
+    <aside v-if="drawerOpen" ref="drawerEl" class="drawer" role="dialog" aria-modal="true" tabindex="-1">
+      <div class="sidebar-brand"><span>Lumo AI</span></div>
+      <nav class="sidebar-nav">
+        <RouterLink v-for="n in visibleNav" :key="n.name" :to="n.to" class="nav-item" :class="{ active: isActive(n) }" @click="closeDrawer">
+          <span aria-hidden="true">{{ n.icon }}</span><span>{{ $t(n.labelKey) }}</span>
+        </RouterLink>
+      </nav>
+      <div class="sidebar-footer">{{ $t('nav.footer') }}</div>
+    </aside>
+
     <main class="main">
       <RouterView />
     </main>

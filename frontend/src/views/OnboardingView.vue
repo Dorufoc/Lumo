@@ -79,7 +79,7 @@ async function selectWorkspace(id: string) {
   background: var(--gradient-soft), var(--bg-glow), var(--bg);
 }
 .onboarding-card {
-  width: 420px;
+  width: min(420px, 92vw);
   padding: var(--space-6);
 }
 .divider {
