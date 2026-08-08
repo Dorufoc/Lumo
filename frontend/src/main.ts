@@ -22,3 +22,18 @@ app.config.globalProperties.$t = (key: string, params?: Record<string, string | 
 window.__lumoI18n = i18n
 
 app.mount('#app')
+
+// PWA：仅生产模式注册 Service Worker（开发模式跳过，避免干扰 vite HMR/代理）
+// sw.js 由构建插件注入当次产物清单，作用域为根 /，与 manifest start_url 一致。
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((reg) => {
+        console.info('[pwa] Service Worker registered:', reg.scope)
+      })
+      .catch((err) => {
+        console.warn('[pwa] Service Worker 注册失败:', err)
+      })
+  })
+}
