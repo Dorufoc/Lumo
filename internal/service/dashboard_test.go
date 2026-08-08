@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 )
@@ -21,6 +22,20 @@ func TestDashboardEmpty(t *testing.T) {
 	}
 	if dash.AIAdvice == "" {
 		t.Fatal("advice missing")
+	}
+	// 契约：新工作区 weak_knowledge 必须是非 nil 空切片（JSON `[]`），而非 null。
+	if dash.WeakKnowledge == nil {
+		t.Fatal("weak_knowledge should be non-nil empty slice, not null")
+	}
+	if len(dash.WeakKnowledge) != 0 {
+		t.Fatalf("expected empty weak knowledge, got %+v", dash.WeakKnowledge)
+	}
+	raw, err := json.Marshal(dash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(raw, []byte(`"weak_knowledge":[]`)) {
+		t.Fatalf("weak_knowledge should marshal to [] not null: %s", raw)
 	}
 }
 

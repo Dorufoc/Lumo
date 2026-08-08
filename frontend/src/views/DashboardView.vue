@@ -80,13 +80,13 @@ const accuracyClass = (rate: number) => (rate >= 0.7 ? 'text-success' : rate >= 
         </div>
         <div class="card">
           <div class="card-title">{{ $t('dashboard.weakKnowledge') }}</div>
-          <div v-if="dash.weak_knowledge.length === 0" class="empty" style="padding: var(--space-4)">
+          <div v-if="(dash.weak_knowledge ?? []).length === 0" class="empty" style="padding: var(--space-4)">
             {{ $t('dashboard.weakEmpty') }}
           </div>
           <table v-else class="table">
             <thead><tr><th>{{ $t('dashboard.knowledgeCol') }}</th><th>{{ $t('dashboard.wrongCountCol') }}</th></tr></thead>
             <tbody>
-              <tr v-for="wk in dash.weak_knowledge" :key="wk.knowledge_id">
+              <tr v-for="wk in (dash.weak_knowledge ?? [])" :key="wk.knowledge_id">
                 <td>{{ wk.name }}</td>
                 <td><span class="badge badge-error">{{ wk.wrong_count }}</span></td>
               </tr>

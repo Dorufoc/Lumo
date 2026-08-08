@@ -56,7 +56,9 @@ func (d *DashboardService) DashboardGet(ctx context.Context, req DashboardGetReq
 		return nil, err
 	}
 	db := d.s.Repo.DB()
-	out := &Dashboard{}
+	// WeakKnowledge 必须初始化为空切片而非 nil，保证 JSON 输出 `[]` 而非 `null`
+	// （新工作区无错题数据时 append 循环零次执行，nil slice 会序列化成 null，前端读 .length 崩溃）。
+	out := &Dashboard{WeakKnowledge: make([]WeakKnowledge, 0)}
 	now := time.Now().UTC()
 	dayStart := now.Truncate(24 * time.Hour)
 	dayEnd := dayStart.AddDate(0, 0, 1)
