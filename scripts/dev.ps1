@@ -12,8 +12,6 @@
 #   -NoBrowser     不自动打开浏览器
 #   -Yes           非交互模式：环境缺失时直接用 winget 安装，不弹出选项询问
 #   -Port <int>    前端 dev server 端口（默认 5173，仅用于浏览器地址与占用检查）
-$args = @()
-
 param(
   [switch]$SkipInstall,
   [switch]$NoBrowser,
