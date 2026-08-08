@@ -4,7 +4,9 @@ package service
 // NoteDelete 软删除、NoteToFlashcard 复用闪卡模块 + 幂等重放、AnnotationCreate 校验。
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -59,6 +61,43 @@ func TestNoteCreateValidation(t *testing.T) {
 		} else if domain.AsError(err).Code != domain.CodeInvalidArgument {
 			t.Fatalf("case %d: want INVALID_ARGUMENT, got %s", i, domain.AsError(err).Code)
 		}
+	}
+}
+
+// TestNoteEmptyTagsContract：无标签/无知识点笔记的 tags/knowledge_ids 必须是空切片而非 null（避免前端 .length 白屏）。
+func TestNoteEmptyTagsContract(t *testing.T) {
+	s, _ := newTestServices(t)
+	ctx := context.Background()
+	ws, userID := createWorkspace(t, s)
+
+	n := helperNote(t, s, ws, userID, "无标签笔记", "b")
+	if n.Tags == nil {
+		t.Fatal("tags should be non-nil empty slice, not null")
+	}
+	if n.KnowledgeIDs == nil {
+		t.Fatal("knowledge_ids should be non-nil empty slice, not null")
+	}
+	if len(n.Tags) != 0 || len(n.KnowledgeIDs) != 0 {
+		t.Fatalf("expected empty tags/knowledge_ids, got %+v / %+v", n.Tags, n.KnowledgeIDs)
+	}
+	raw, err := json.Marshal(n)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(raw, []byte(`"tags":[]`)) {
+		t.Fatalf("tags should marshal to [] not null: %s", raw)
+	}
+	if !bytes.Contains(raw, []byte(`"knowledge_ids":[]`)) {
+		t.Fatalf("knowledge_ids should marshal to [] not null: %s", raw)
+	}
+
+	// 列表路径同样保证空切片。
+	page, err := s.Note.NoteList(ctx, NoteListReq{WorkspaceID: ws.ID, Limit: 10})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if page.Items[0].Tags == nil || page.Items[0].KnowledgeIDs == nil {
+		t.Fatalf("listed note arrays should be non-nil, got %+v", page.Items[0])
 	}
 }
 

@@ -4,6 +4,7 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -361,6 +362,16 @@ func TestKnowledgeGraphGetSingleIsolatedNode(t *testing.T) {
 	}
 	if len(g.Edges) != 0 {
 		t.Fatalf("edges = %d", len(g.Edges))
+	}
+	if g.Edges == nil {
+		t.Fatal("edges should be non-nil empty slice, not null")
+	}
+	raw, err := json.Marshal(g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(raw, []byte(`"edges":[]`)) {
+		t.Fatalf("edges should marshal to [] not null: %s", raw)
 	}
 	if g.Nodes[0].Mastery != nil {
 		t.Fatalf("mastery without user: %v", *g.Nodes[0].Mastery)

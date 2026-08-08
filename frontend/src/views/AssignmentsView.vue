@@ -681,7 +681,7 @@ onMounted(load)
           <select v-model="createForm.paper_id" class="input">
             <option value="" disabled>{{ $t('assignments.paperPlaceholder') }}</option>
             <option v-for="p in publishedPapers" :key="p.id" :value="p.id">
-              {{ p.title }}（{{ p.sections.reduce((n, s) => n + s.question_version_ids.length, 0) }} {{ $t('exam.colQuestions') }}）
+              {{ p.title }}（{{ (p.sections ?? []).reduce((n, s) => n + (s.question_version_ids ?? []).length, 0) }} {{ $t('exam.colQuestions') }}）
             </option>
           </select>
         </div>

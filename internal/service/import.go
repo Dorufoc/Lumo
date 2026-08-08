@@ -336,6 +336,8 @@ func (im *ImportService) previewOf(ctx context.Context, wsID, batchID string, wi
 		BatchID: batch.ID, FileName: batch.FileName, Format: batch.Format,
 		Status: batch.Status, TotalCount: batch.TotalCount,
 		ValidCount: batch.ValidCount, ErrorCount: batch.ErrorCount,
+		Errors:       make([]ImportItemError, 0),
+		PreviewItems: make([]json.RawMessage, 0),
 	}
 	for _, it := range items {
 		if it.Status == "invalid" {
@@ -376,6 +378,7 @@ func (im *ImportService) batchOf(ctx context.Context, wsID, batchID string) (*Im
 		Status: batch.Status, TotalCount: batch.TotalCount,
 		ValidCount: batch.ValidCount, ErrorCount: batch.ErrorCount,
 		CreatedAt: batch.CreatedAt, UpdatedAt: batch.UpdatedAt,
+		Items: make([]*ImportItem, 0, len(items)),
 	}
 	for _, it := range items {
 		item := &ImportItem{ID: it.ID, ItemNo: it.ItemNo, Payload: it.Payload, Status: it.Status, QuestionID: it.QuestionID}

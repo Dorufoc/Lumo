@@ -181,9 +181,9 @@ onMounted(load)
         <!-- 薄弱知识点（仅聚合名称+错题数） -->
         <div class="mt-3">
           <div class="text-secondary mb-2">{{ $t('family.weakKnowledge') }}</div>
-          <div v-if="it.weak_knowledge.length === 0" class="hint">{{ $t('family.noWeak') }}</div>
+          <div v-if="(it.weak_knowledge ?? []).length === 0" class="hint">{{ $t('family.noWeak') }}</div>
           <div v-else class="weak-list">
-            <span v-for="wk in it.weak_knowledge" :key="wk.knowledge_id" class="badge badge-warning">
+            <span v-for="wk in (it.weak_knowledge ?? [])" :key="wk.knowledge_id" class="badge badge-warning">
               {{ wk.name }} · {{ wk.wrong_count }}
             </span>
           </div>

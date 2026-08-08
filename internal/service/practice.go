@@ -438,7 +438,12 @@ func (p *PracticeService) doSubmit(ctx context.Context, wsID, sessionID string, 
 
 	totalScore := 0.0
 	maxTotal := 0.0
-	result := &PracticeResult{SessionID: sessionID, Status: "graded"}
+	result := &PracticeResult{
+		SessionID: sessionID, Status: "graded",
+		Questions:     make([]*ResultQuestion, 0),
+		WrongAnswers:  make([]*WrongAnswerItem, 0),
+		ReviewActions: make([]*ReviewAction, 0),
+	}
 
 	for _, q := range questions {
 		maxTotal += q.MaxScore
@@ -666,7 +671,12 @@ func (p *PracticeService) PracticeGetResult(ctx context.Context, req PracticeGet
 	if err != nil {
 		return nil, err
 	}
-	result := &PracticeResult{SessionID: req.SessionID, Status: session.Status}
+	result := &PracticeResult{
+		SessionID: req.SessionID, Status: session.Status,
+		Questions:     make([]*ResultQuestion, 0),
+		WrongAnswers:  make([]*WrongAnswerItem, 0),
+		ReviewActions: make([]*ReviewAction, 0),
+	}
 	total := 0.0
 	maxTotal := 0.0
 	for _, q := range questions {
@@ -797,8 +807,14 @@ func (p *PracticeService) sessionByID(ctx context.Context, wsID, id string) (*Pr
 		TimeLimitSec: session.TimeLimitSec, StartedAt: session.StartedAt,
 		SubmittedAt: session.SubmittedAt, Version: session.Version,
 		CreatedAt: session.CreatedAt, UpdatedAt: session.UpdatedAt,
+		Questions: make([]*PracticeQuestion, 0),
+		Skipped:   make([]string, 0),
+		Drafts:    make([]*SubmissionDraft, 0),
 	}
 	_ = json.Unmarshal(session.Skipped, &out.Skipped)
+	if out.Skipped == nil {
+		out.Skipped = make([]string, 0)
+	}
 	// 答题中返回题干（脱敏：不含标准答案与解析）。
 	answering := session.Status == "answering" || session.Status == "created"
 	for _, q := range p.snapshotQuestions(session) {

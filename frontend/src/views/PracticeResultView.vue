@@ -33,7 +33,7 @@ const accuracy = computed(() => {
   if (!r || r.max_score === 0) return 0
   return Math.round((r.total_score / r.max_score) * 100)
 })
-const correctCount = computed(() => result.value?.questions.filter((q) => !q.is_wrong).length ?? 0)
+const correctCount = computed(() => (result.value?.questions ?? []).filter((q) => !q.is_wrong).length ?? 0)
 
 function answerOf(q: PracticeResult['questions'][number]): string | string[] | null {
   const a = q.submission?.answer
@@ -55,7 +55,7 @@ function answerOf(q: PracticeResult['questions'][number]): string | string[] | n
           {{ accuracy }}%
         </h1>
         <div class="text-secondary mb-3">
-          {{ $t('result.summary', { score: result.total_score, max: result.max_score, correct: correctCount, total: result.questions.length }) }}
+          {{ $t('result.summary', { score: result.total_score, max: result.max_score, correct: correctCount, total: (result.questions ?? []).length }) }}
         </div>
         <div class="flex gap-3" style="justify-content: center">
           <RouterLink to="/practice" class="btn btn-primary">{{ $t('result.practiceAgain') }}</RouterLink>
@@ -63,7 +63,7 @@ function answerOf(q: PracticeResult['questions'][number]): string | string[] | n
         </div>
       </div>
 
-      <div class="card" v-for="(q, i) in result.questions" :key="q.question_version_id">
+      <div class="card" v-for="(q, i) in (result.questions ?? [])" :key="q.question_version_id">
         <div class="flex-between mb-2">
           <div class="flex gap-2" style="align-items: center">
             <span class="badge" :class="q.is_wrong ? 'badge-error' : 'badge-success'">

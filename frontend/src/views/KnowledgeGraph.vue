@@ -136,7 +136,7 @@ function draw() {
   ctx.scale(t.scale, t.scale)
 
   // 边
-  for (const e of graph.value.edges) {
+  for (const e of graph.value.edges ?? []) {
     const a = pos.get(e.from)
     const b = pos.get(e.to)
     if (!a || !b) continue
@@ -518,8 +518,8 @@ onBeforeUnmount(() => {
         <div class="formula-box">{{ detail.formula_description }}</div>
 
         <div class="mt-3">
-          <div class="text-secondary mb-2">{{ $t('knowledgeGraph.evidenceTitle') }}（{{ detail.evidence.length }}）</div>
-          <table v-if="detail.evidence.length > 0" class="table">
+          <div class="text-secondary mb-2">{{ $t('knowledgeGraph.evidenceTitle') }}（{{ (detail.evidence ?? []).length }}）</div>
+          <table v-if="(detail.evidence ?? []).length > 0" class="table">
             <thead>
               <tr>
                 <th>{{ $t('knowledgeGraph.evidenceType') }}</th>
@@ -528,7 +528,7 @@ onBeforeUnmount(() => {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(ev, i) in detail.evidence" :key="i">
+              <tr v-for="(ev, i) in (detail.evidence ?? [])" :key="i">
                 <td>
                   <span class="badge" :class="ev.type === 'grading' ? 'badge-primary' : 'badge-warning'">
                     {{ ev.type === 'grading' ? $t('knowledgeGraph.typeGrading') : $t('knowledgeGraph.typeReview') }}

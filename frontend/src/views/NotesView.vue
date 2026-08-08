@@ -87,7 +87,7 @@ function openEdit(n: Note) {
   formKind.value = n.kind
   formTitle.value = n.title
   formBody.value = n.body_md
-  formTags.value = n.tags.join(', ')
+  formTags.value = (n.tags ?? []).join(', ')
   error.value = ''
 }
 
@@ -242,8 +242,8 @@ onMounted(load)
               <span class="badge">{{ $t(kindKey(n.kind)) }}</span>
               <h3 class="note-title">{{ n.title }}</h3>
             </div>
-            <div v-if="n.tags.length" class="flex gap-2 mt-2" style="flex-wrap: wrap">
-              <span v-for="t in n.tags" :key="t" class="tag-chip">#{{ t }}</span>
+            <div v-if="(n.tags ?? []).length" class="flex gap-2 mt-2" style="flex-wrap: wrap">
+              <span v-for="t in (n.tags ?? [])" :key="t" class="tag-chip">#{{ t }}</span>
             </div>
           </div>
           <div class="flex-col gap-2" style="align-items: flex-end">

@@ -210,7 +210,7 @@ const accuracy = computed(() => {
   if (!r || r.max_score === 0) return 0
   return Math.round((r.total_score / r.max_score) * 100)
 })
-const correctCount = computed(() => resultRef.value?.questions.filter((x) => !x.is_wrong).length ?? 0)
+const correctCount = computed(() => (resultRef.value?.questions ?? []).filter((x) => !x.is_wrong).length ?? 0)
 const openIndex = ref<number | null>(0)
 
 function answerOf(x: ExamResult['questions'][number]): string | string[] | null {
@@ -274,8 +274,8 @@ onBeforeUnmount(() => {
                 </span>
               </td>
               <td class="text-muted">
-                {{ p.sections.reduce((n, s) => n + s.question_version_ids.length, 0) }} ·
-                {{ p.sections.length }} {{ $t('exam.colSections') }}
+                {{ (p.sections ?? []).reduce((n, s) => n + (s.question_version_ids ?? []).length, 0) }} ·
+                {{ (p.sections ?? []).length }} {{ $t('exam.colSections') }}
               </td>
               <td class="text-muted">{{ p.config_json.duration_min ?? '–' }} min</td>
               <td>
@@ -339,7 +339,7 @@ onBeforeUnmount(() => {
         <h1 style="font-size: 40px" :class="accuracy >= 60 ? 'text-success' : 'text-error'">{{ accuracy }}%</h1>
         <div class="text-secondary mb-3">
           {{ $t('exam.scoreSummary', { score: resultRef.total_score, max: resultRef.max_score }) }} ·
-          {{ $t('exam.correctCount', { correct: correctCount, total: resultRef.questions.length }) }}
+          {{ $t('exam.correctCount', { correct: correctCount, total: (resultRef.questions ?? []).length }) }}
         </div>
         <div class="flex gap-3" style="justify-content: center">
           <RouterLink to="/exams" class="btn">{{ $t('exam.backToList') }}</RouterLink>
@@ -347,7 +347,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="card" v-for="(x, i) in resultRef.questions" :key="x.question_version_id">
+      <div class="card" v-for="(x, i) in (resultRef.questions ?? [])" :key="x.question_version_id">
         <div class="flex-between mb-2">
           <div class="flex gap-2" style="align-items: center">
             <span class="badge" :class="x.is_wrong ? 'badge-error' : 'badge-success'">

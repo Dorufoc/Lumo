@@ -651,10 +651,15 @@ func (e *ExamService) paperByID(ctx context.Context, wsID, id string) (*ExamPape
 		ID: p.ID, WorkspaceID: p.WorkspaceID, UserID: p.UserID, Title: p.Title,
 		Config: json.RawMessage(p.ConfigJSON), Status: p.Status,
 		Version: p.Version, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
+		Sections: make([]*ExamPaperSection, 0, len(sections)),
 	}
 	for _, s := range sections {
 		var ids []string
 		_ = json.Unmarshal([]byte(s.QuestionVersionIDs), &ids)
+		// 存储为空/null 时 Unmarshal 会把切片置 nil；这里兜底为空切片，避免前端 .length 白屏。
+		if ids == nil {
+			ids = make([]string, 0)
+		}
 		out.Sections = append(out.Sections, &ExamPaperSection{
 			ID: s.ID, PaperID: s.PaperID, Title: s.Title, OrderNo: s.OrderNo,
 			QuestionVersionIDs: ids, Score: s.Score,

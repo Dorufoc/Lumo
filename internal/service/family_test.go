@@ -465,6 +465,13 @@ func TestFamilyViewGetAggregation(t *testing.T) {
 	if it.Settings.DailyLimitMin != 45 || it.Settings.ParentUserID != parentID {
 		t.Fatalf("settings 聚合异常: %+v", it.Settings)
 	}
+	// 无错题时 weak_knowledge 必须是空切片而非 null（避免前端 .length 白屏）。
+	if it.WeakKnowledge == nil {
+		t.Fatal("weak_knowledge should be non-nil empty slice, not null")
+	}
+	if len(it.WeakKnowledge) != 0 {
+		t.Fatalf("expected empty weak knowledge, got %+v", it.WeakKnowledge)
+	}
 	// G4：JSON 输出不得包含答案/错题正文/AI 会话等隐私明细。
 	raw, err := json.Marshal(it)
 	if err != nil {

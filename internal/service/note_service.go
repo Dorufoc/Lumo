@@ -120,6 +120,13 @@ func noteFromRow(n *repository.NoteRow) *Note {
 	}
 	_ = json.Unmarshal([]byte(n.KnowledgeIDs), &d.KnowledgeIDs)
 	_ = json.Unmarshal([]byte(n.Tags), &d.Tags)
+	// 存储为空/null 时 Unmarshal 会把切片置 nil；这里兜底为空切片，避免前端 .length 白屏。
+	if d.KnowledgeIDs == nil {
+		d.KnowledgeIDs = make([]string, 0)
+	}
+	if d.Tags == nil {
+		d.Tags = make([]string, 0)
+	}
 	return d
 }
 

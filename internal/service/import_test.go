@@ -1,7 +1,9 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"testing"
 
 	"lumo/internal/domain"
@@ -43,6 +45,20 @@ B. 错误
 	}
 	if len(preview.PreviewItems) != 3 {
 		t.Fatalf("expected 3 preview items, got %d", len(preview.PreviewItems))
+	}
+	// 全量合法时 errors 必须是空切片而非 null（避免前端 .length 白屏）。
+	if preview.Errors == nil {
+		t.Fatal("errors should be non-nil empty slice, not null")
+	}
+	if preview.PreviewItems == nil {
+		t.Fatal("preview_items should be non-nil slice, not null")
+	}
+	rawPreview, err := json.Marshal(preview)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(rawPreview, []byte(`"errors":[]`)) {
+		t.Fatalf("errors should marshal to [] not null: %s", rawPreview)
 	}
 
 	batch, err := s.Import.LibraryCommitImport(ctx, LibraryCommitImportReq{

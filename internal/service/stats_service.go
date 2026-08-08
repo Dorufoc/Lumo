@@ -59,7 +59,7 @@ func (st *StatsService) ClassStats(ctx context.Context, req ClassStatsReq) (*Cla
 		return nil, err
 	}
 	db := st.s.Repo.DB()
-	out := &ClassStats{ClassID: req.ClassID, AssignmentID: req.AssignmentID}
+	out := &ClassStats{ClassID: req.ClassID, AssignmentID: req.AssignmentID, WeakTop: make([]domain.WeakKnowledgeItem, 0)}
 
 	// 学生总数（活跃成员）
 	if err := db.QueryRowContext(ctx, `

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 	"time"
@@ -101,6 +102,22 @@ func TestExamFullFlow(t *testing.T) {
 	}
 	if paper.Status != "draft" || paper.Version != 1 || len(paper.Sections) != 1 {
 		t.Fatalf("unexpected paper: %+v", paper)
+	}
+	if paper.Sections == nil {
+		t.Fatal("sections should be non-nil, not null")
+	}
+	if paper.Sections[0].QuestionVersionIDs == nil {
+		t.Fatal("question_version_ids should be non-nil empty slice, not null")
+	}
+	rawPaper, err := json.Marshal(paper)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(rawPaper, []byte(`"sections":[{`)) {
+		t.Fatalf("sections should marshal to array: %s", rawPaper)
+	}
+	if !bytes.Contains(rawPaper, []byte(`"question_version_ids":["`)) {
+		t.Fatalf("question_version_ids should marshal to array: %s", rawPaper)
 	}
 
 	// 未发布不能开始考试

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 
@@ -162,6 +163,17 @@ func TestClassStatsEmptyClass(t *testing.T) {
 	}
 	if got.CompletionRate != 0 || got.AvgScore != 0 || got.Accuracy != 0 || len(got.WeakTop) != 0 {
 		t.Fatalf("empty stats nonzero: %+v", got)
+	}
+	// 无提交时 weak_top 必须是空切片而非 null（避免前端 .length 白屏）。
+	if got.WeakTop == nil {
+		t.Fatal("weak_top should be non-nil empty slice, not null")
+	}
+	raw, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(raw, []byte(`"weak_top":[]`)) {
+		t.Fatalf("weak_top should marshal to [] not null: %s", raw)
 	}
 }
 

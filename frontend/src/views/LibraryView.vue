@@ -348,22 +348,22 @@ function docName(id: string) {
             {{ $t('library.parseStats', { valid: preview.valid_count, error: preview.error_count }) }}
           </span>
         </div>
-        <div v-if="preview.errors.length > 0" class="mb-3">
-          <div v-for="e in preview.errors.slice(0, 10)" :key="e.item_no" class="error-text">
+        <div v-if="(preview.errors ?? []).length > 0" class="mb-3">
+          <div v-for="e in (preview.errors ?? []).slice(0, 10)" :key="e.item_no" class="error-text">
             {{ $t('library.parseErrorLine', { no: e.item_no, error: e.error }) }}
           </div>
-          <div v-if="preview.errors.length > 10" class="hint">{{ $t('library.moreErrors', { count: preview.errors.length - 10 }) }}</div>
+          <div v-if="(preview.errors ?? []).length > 10" class="hint">{{ $t('library.moreErrors', { count: (preview.errors ?? []).length - 10 }) }}</div>
         </div>
-        <div v-if="preview.preview_items.length > 0" class="mb-3">
-          <div class="hint mb-2">{{ $t('library.previewLabel', { count: preview.preview_items.length }) }}</div>
-          <div v-for="(item, i) in preview.preview_items" :key="i" class="text-secondary" style="white-space: pre-wrap">
+        <div v-if="(preview.preview_items ?? []).length > 0" class="mb-3">
+          <div class="hint mb-2">{{ $t('library.previewLabel', { count: (preview.preview_items ?? []).length }) }}</div>
+          <div v-for="(item, i) in (preview.preview_items ?? [])" :key="i" class="text-secondary" style="white-space: pre-wrap">
             {{ i + 1 }}. {{ item.stem }}
           </div>
         </div>
         <button v-if="!batch" class="btn btn-success" :disabled="importing || preview.valid_count === 0" @click="doCommit">
           {{ importing ? $t('common.importing') : $t('library.confirmImport', { count: preview.valid_count }) }}
         </button>
-        <div v-if="batch" class="badge badge-success">{{ $t('library.imported', { count: batch.items.filter((i) => i.status === 'imported').length }) }}</div>
+        <div v-if="batch" class="badge badge-success">{{ $t('library.imported', { count: (batch.items ?? []).filter((i) => i.status === 'imported').length }) }}</div>
       </div>
     </template>
 

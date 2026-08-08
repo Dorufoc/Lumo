@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"testing"
@@ -418,5 +419,79 @@ func TestPracticeScoping(t *testing.T) {
 		QuestionIDs: []string{qd.ID}, IdempotencyKey: "ps-" + NewID(),
 	}); err == nil {
 		t.Fatal("expected INVALID_STATE for unpublished question")
+	}
+}
+
+// TestPracticeEmptySlicesContract：全对提交时 result 的 questions/wrong_answers/review_actions
+// 以及会话的 questions/skipped/drafts 必须是空切片而非 null（避免前端 .length 白屏）。
+func TestPracticeEmptySlicesContract(t *testing.T) {
+	s, _ := newTestServices(t)
+	ws, userID := createWorkspace(t, s)
+
+	q := publishedQuestion(t, s, ws.ID, scPayload("全对题", "B"))
+	session, err := s.Practice.PracticeStart(ctx(), PracticeStartReq{
+		WorkspaceID: ws.ID, UserID: userID, Mode: "practice",
+		QuestionIDs: []string{q.ID}, IdempotencyKey: "ps-" + NewID(),
+	})
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if session.Questions == nil {
+		t.Fatal("session questions should be non-nil, not null")
+	}
+	if session.Skipped == nil {
+		t.Fatal("session skipped should be non-nil empty slice, not null")
+	}
+	if session.Drafts == nil {
+		t.Fatal("session drafts should be non-nil empty slice, not null")
+	}
+	qv := session.Questions[0].QuestionVersionID
+
+	if _, err := s.Practice.PracticeSaveAnswer(ctx(), PracticeSaveAnswerReq{
+		WorkspaceID: ws.ID, SessionID: session.ID, QuestionVersionID: qv,
+		Answer: json.RawMessage(`"B"`), ClientSequence: 1,
+	}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	result, err := s.Practice.PracticeSubmit(ctx(), PracticeSubmitReq{
+		WorkspaceID: ws.ID, SessionID: session.ID, Version: session.Version,
+		IdempotencyKey: "psub-" + NewID(),
+	})
+	if err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	if result.Questions == nil {
+		t.Fatal("result questions should be non-nil, not null")
+	}
+	if result.WrongAnswers == nil {
+		t.Fatal("wrong_answers should be non-nil empty slice, not null")
+	}
+	if len(result.WrongAnswers) != 0 {
+		t.Fatalf("expected no wrong answers, got %+v", result.WrongAnswers)
+	}
+	if result.ReviewActions == nil {
+		t.Fatal("review_actions should be non-nil empty slice, not null")
+	}
+	if len(result.ReviewActions) != 0 {
+		t.Fatalf("expected no review actions, got %+v", result.ReviewActions)
+	}
+	raw, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(raw, []byte(`"wrong_answers":[]`)) {
+		t.Fatalf("wrong_answers should marshal to [] not null: %s", raw)
+	}
+	if !bytes.Contains(raw, []byte(`"review_actions":[]`)) {
+		t.Fatalf("review_actions should marshal to [] not null: %s", raw)
+	}
+
+	// PracticeGetResult 同样保证空切片。
+	got, err := s.Practice.PracticeGetResult(ctx(), PracticeGetResultReq{WorkspaceID: ws.ID, SessionID: session.ID})
+	if err != nil {
+		t.Fatalf("get result: %v", err)
+	}
+	if got.Questions == nil || got.WrongAnswers == nil || got.ReviewActions == nil {
+		t.Fatalf("get result slices should be non-nil, got %+v", got)
 	}
 }

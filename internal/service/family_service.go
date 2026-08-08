@@ -439,7 +439,7 @@ func (f *FamilyService) FamilyViewGet(ctx context.Context, req FamilyViewReq) ([
 
 // buildFamilyViewItem 聚合单个学生的家长视图指标。
 func (f *FamilyService) buildFamilyViewItem(ctx context.Context, wsID, parentID string, b *repository.FamilyBindingRow) (*FamilyViewItem, error) {
-	item := &FamilyViewItem{BindingID: b.ID}
+	item := &FamilyViewItem{BindingID: b.ID, WeakKnowledge: make([]WeakKnowledge, 0)}
 	studentID := b.StudentUserID
 	stu, err := f.s.Repo.GetUser(ctx, wsID, studentID)
 	if err != nil {

@@ -433,10 +433,10 @@ onMounted(load)
               </div>
               <div class="stats-weak">
                 <div class="card-title">{{ $t('classes.statsWeakTop') }}</div>
-                <div v-if="openStats.weak_top.length === 0" class="empty">{{ $t('classes.statsNoWeak') }}</div>
+                <div v-if="(openStats.weak_top ?? []).length === 0" class="empty">{{ $t('classes.statsNoWeak') }}</div>
                 <table v-else class="table">
                   <tbody>
-                    <tr v-for="w in openStats.weak_top" :key="w.knowledge_id">
+                    <tr v-for="w in (openStats.weak_top ?? [])" :key="w.knowledge_id">
                       <td>{{ w.name }}</td>
                       <td class="right">
                         <span class="badge badge-error">{{ w.wrong_count }}</span>

@@ -112,6 +112,9 @@ func (k *KnowledgeGraphService) KnowledgeGraphGet(ctx context.Context, req Knowl
 	for _, r := range relations {
 		addEdge(r.FromKnowledgeID, r.ToKnowledgeID, r.RelType, r.Source)
 	}
+	if edges == nil {
+		edges = make([]*KnowledgeGraphEdge, 0)
+	}
 
 	if req.UserID != "" {
 		if err := k.recomputeMastery(ctx, req.UserID); err != nil {
