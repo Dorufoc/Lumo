@@ -145,6 +145,19 @@ func (s *Store) SetDeviceStatus(ctx context.Context, deviceID, status string) er
 	return err
 }
 
+// DeviceStatus 查询设备状态；不存在返回空字符串（auth 中间件用于拒绝 revoked 设备）。
+func (s *Store) DeviceStatus(ctx context.Context, deviceID string) (string, error) {
+	var status string
+	err := s.db.QueryRowContext(ctx, `SELECT status FROM devices WHERE id = ?`, deviceID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return status, nil
+}
+
 // PushOps 逐项处理推送，与 in-process SyncService.SyncPush 语义完全一致：
 //   - duplicate：operation_id 已存在；
 //   - conflict：客户端 BaseVersion 落后于服务端当前版本（current > 0 && BaseVersion < current），

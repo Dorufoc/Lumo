@@ -324,6 +324,8 @@ func (a *App) RegisterHandlers(srv *apphttp.Server) {
 
 	// P4 同步（本地模拟服务端）
 	bind(srv, "SyncDeviceRegister", a.Svc.Sync.SyncDeviceRegister)
+	bind(srv, "SyncDeviceList", a.Svc.Sync.SyncDeviceList)
+	bind(srv, "SyncDeviceRevoke", a.Svc.Sync.SyncDeviceRevoke)
 	bind(srv, "SyncPush", a.Svc.Sync.SyncPushLocal)
 	bind(srv, "SyncPull", a.Svc.Sync.SyncPull)
 	bind(srv, "SyncStatusGet", a.Svc.Sync.SyncStatusGet)

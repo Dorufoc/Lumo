@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"lumo/internal/domain"
+	"lumo/internal/repository"
 )
 
 func TestSyncDeviceAndPush(t *testing.T) {
@@ -156,3 +157,124 @@ func TestSyncScoping(t *testing.T) {
 }
 
 func jsonRaw(s string) json.RawMessage { return json.RawMessage(s) }
+
+// TestSyncDeviceListAndRevoke 覆盖设备列表 + 停用设备双通道失效（Todo 40）：
+// 停用设备后，SyncPushLocal/SyncPull 入口返回 UNAUTHORIZED（本地 in-process 校验）。
+func TestSyncDeviceListAndRevoke(t *testing.T) {
+	s, _ := newTestServices(t)
+	ctx := context.Background()
+	ws, _ := createWorkspace(t, s)
+
+	// 注册三台设备（本地 devices 表）
+	for _, d := range []SyncDeviceRegisterReq{
+		{WorkspaceID: ws.ID, DeviceID: "device-a", DeviceName: "Windows Desktop", Platform: "windows", AppVersion: "2.0.0"},
+		{WorkspaceID: ws.ID, DeviceID: "device-b", DeviceName: "Android Phone", Platform: "android", AppVersion: "2.0.0"},
+		{WorkspaceID: ws.ID, DeviceID: "device-c", DeviceName: "iPad", Platform: "ios", AppVersion: "2.0.0"},
+	} {
+		if _, err := s.Sync.SyncDeviceRegister(ctx, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// 设备列表：三台上线
+	list, err := s.Sync.SyncDeviceList(ctx, SyncDeviceListReq{WorkspaceID: ws.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list.Devices) != 3 {
+		t.Fatalf("expected 3 devices, got %d", len(list.Devices))
+	}
+	if list.Devices[0].Status != "active" || list.Devices[0].DeviceName != "Windows Desktop" {
+		t.Fatalf("unexpected device list: %+v", list.Devices)
+	}
+
+	// 停用 device-b → devices.status=revoked
+	rev, err := s.Sync.SyncDeviceRevoke(ctx, SyncDeviceRevokeReq{WorkspaceID: ws.ID, DeviceID: "device-b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rev.DeviceID != "device-b" || rev.Status != "revoked" {
+		t.Fatalf("unexpected revoke result: %+v", rev)
+	}
+
+	// 列表反映 revoked
+	list, _ = s.Sync.SyncDeviceList(ctx, SyncDeviceListReq{WorkspaceID: ws.ID})
+	if len(list.Devices) != 3 {
+		t.Fatalf("expected 3 devices after revoke, got %d", len(list.Devices))
+	}
+	byID := map[string]string{}
+	for _, d := range list.Devices {
+		byID[d.DeviceID] = d.Status
+	}
+	if byID["device-b"] != "revoked" {
+		t.Fatalf("device-b should be revoked: %v", byID)
+	}
+	if byID["device-a"] != "active" || byID["device-c"] != "active" {
+		t.Fatalf("device-a/c should stay active: %v", byID)
+	}
+
+	// 停用设备立即失效：SyncPushLocal/SyncPull 返回 UNAUTHORIZED（本地双通道校验）
+	if _, err := s.Sync.SyncPushLocal(ctx, SyncPushLocalReq{WorkspaceID: ws.ID, DeviceID: "device-b"}); domain.AsError(err).Code != domain.CodeUnauthorized {
+		t.Fatalf("SyncPushLocal with revoked device should be UNAUTHORIZED, got %v", err)
+	}
+	if _, err := s.Sync.SyncPull(ctx, SyncPullReq{WorkspaceID: ws.ID, DeviceID: "device-b", Cursor: 0}); domain.AsError(err).Code != domain.CodeUnauthorized {
+		t.Fatalf("SyncPull with revoked device should be UNAUTHORIZED, got %v", err)
+	}
+	// 活跃设备不受影响
+	if _, err := s.Sync.SyncPushLocal(ctx, SyncPushLocalReq{WorkspaceID: ws.ID, DeviceID: "device-a"}); err != nil {
+		t.Fatalf("SyncPushLocal with active device should pass: %v", err)
+	}
+	if _, err := s.Sync.SyncPull(ctx, SyncPullReq{WorkspaceID: ws.ID, DeviceID: "device-a", Cursor: 0}); err != nil {
+		t.Fatalf("SyncPull with active device should pass: %v", err)
+	}
+}
+
+// TestSyncRevokePropagatesDeviceRevokedOp 覆盖撤销传播（Todo 40）：
+// 本地停用设备时经 POST /v1/sync/push 发送 device:revoked 操作
+// （entity_type=device, entity_id=设备 id, operation=update, payload.status=revoked）。
+func TestSyncRevokePropagatesDeviceRevokedOp(t *testing.T) {
+	s, _ := newTestServices(t)
+	ctx := context.Background()
+	ws, _ := createWorkspace(t, s)
+
+	if _, err := s.Sync.SyncDeviceRegister(ctx, SyncDeviceRegisterReq{WorkspaceID: ws.ID, DeviceID: "device-b", DeviceName: "Android Phone", Platform: "android", AppVersion: "2.0.0"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Sync.SyncDeviceRevoke(ctx, SyncDeviceRevokeReq{WorkspaceID: ws.ID, DeviceID: "device-b"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// pending 队列包含 device:revoked 操作（payload 含 status=revoked）
+	ops, err := s.Repo.ListPendingSyncOps(ctx, ws.ID, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found *repository.SyncOpRow
+	for _, op := range ops {
+		if op.EntityType == "device" && op.EntityID == "device-b" {
+			found = op
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected device:revoked op in pending queue, ops=%+v", ops)
+	}
+	if found.Operation != "update" {
+		t.Fatalf("expected operation=update, got %s", found.Operation)
+	}
+	var payload struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(found.Payload, &payload); err != nil || payload.Status != "revoked" {
+		t.Fatalf("expected payload.status=revoked, got %s (err=%v)", string(found.Payload), err)
+	}
+
+	// 推送后：device:revoked 被模拟服务端接受；停用设备仍被本地拒绝
+	res, err := s.Sync.SyncPushLocal(ctx, SyncPushLocalReq{WorkspaceID: ws.ID, DeviceID: "device-a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Items) != 1 || res.Items[0].Result != "accepted" {
+		t.Fatalf("expected device:revoked accepted, got %+v", res.Items)
+	}
+}

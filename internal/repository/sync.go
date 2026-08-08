@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"lumo/internal/domain"
@@ -11,19 +12,19 @@ import (
 
 // SyncOpRow 是 sync_operations 表行。
 type SyncOpRow struct {
-	OperationID  string
-	DeviceID     string
-	WorkspaceID  string
-	EntityType   string
-	EntityID     string
-	BaseVersion  int
-	Operation    string
-	Payload      json.RawMessage
-	State        string
-	ServerSeq    *int64
-	RetryCount   int
-	CreatedAt    string
-	UpdatedAt    string
+	OperationID string
+	DeviceID    string
+	WorkspaceID string
+	EntityType  string
+	EntityID    string
+	BaseVersion int
+	Operation   string
+	Payload     json.RawMessage
+	State       string
+	ServerSeq   *int64
+	RetryCount  int
+	CreatedAt   string
+	UpdatedAt   string
 }
 
 // CreateSyncOp 记录变更操作（幂等：operation_id 唯一）。
@@ -131,6 +132,89 @@ func (r *Repo) RecordSyncOp(ctx context.Context, wsID, entityType, entityID, ope
 		Operation: operation, Payload: json.RawMessage(MarshalJSON(payload)),
 	}
 	return r.CreateSyncOp(ctx, op)
+}
+
+// ---------- 设备管理（Todo 40：桌面-移动协同；本地 devices 表为 status 权威源）----------
+
+// DeviceRow 是 devices 表行映射（本地 status 权威源）。
+type DeviceRow struct {
+	ID          string
+	WorkspaceID string
+	DeviceName  string
+	Platform    string
+	LastSeenAt  string
+	Status      string // active | revoked
+	CreatedAt   string
+}
+
+// UpsertDevice 注册/刷新设备（幂等，语义镜像 cloud-server RegisterDevice）：
+//   - 已存在：刷新最近活跃与名称/平台，返回 already_registered；
+//   - 已撤销设备不自动恢复（撤销以服务端时间为准）；
+//   - 不存在：插入 active。
+func (r *Repo) UpsertDevice(ctx context.Context, wsID string, d DeviceRow) (string, error) {
+	var status string
+	err := r.db.QueryRowContext(ctx, `SELECT status FROM devices WHERE id = ?`, d.ID).Scan(&status)
+	switch {
+	case err == nil:
+		// 已存在：刷新最近活跃与名称/平台，返回 already_registered（不恢复已撤销设备）
+		_, uerr := r.db.ExecContext(ctx,
+			`UPDATE devices SET last_seen_at = ?, device_name = ?, platform = ? WHERE id = ?`,
+			d.LastSeenAt, d.DeviceName, d.Platform, d.ID)
+		if uerr != nil {
+			return "", normalizeErr(uerr)
+		}
+		return "already_registered", nil
+	case errors.Is(err, sql.ErrNoRows):
+		_, ierr := r.db.ExecContext(ctx,
+			`INSERT INTO devices (id, workspace_id, device_name, platform, last_seen_at, status, created_at)
+			 VALUES (?, ?, ?, ?, ?, 'active', ?)`,
+			d.ID, wsID, d.DeviceName, d.Platform, d.LastSeenAt, d.CreatedAt)
+		if ierr != nil {
+			return "", normalizeErr(ierr)
+		}
+		return "registered", nil
+	default:
+		return "", normalizeErr(err)
+	}
+}
+
+// GetDeviceStatus 查询设备状态；不存在返回空字符串（不视为错误）。
+func (r *Repo) GetDeviceStatus(ctx context.Context, deviceID string) (string, error) {
+	var status string
+	err := r.db.QueryRowContext(ctx, `SELECT status FROM devices WHERE id = ?`, deviceID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", normalizeErr(err)
+	}
+	return status, nil
+}
+
+// SetDeviceStatus 更新设备状态（device:revoked 传播 / 本地停用用）。
+func (r *Repo) SetDeviceStatus(ctx context.Context, deviceID, status string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE devices SET status = ? WHERE id = ?`, status, deviceID)
+	return normalizeErr(err)
+}
+
+// ListDevices 列出工作区全部设备（按创建时间升序）。
+func (r *Repo) ListDevices(ctx context.Context, wsID string) ([]*DeviceRow, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, workspace_id, device_name, platform, last_seen_at, status, created_at
+		FROM devices WHERE workspace_id = ? ORDER BY created_at ASC, id ASC`, wsID)
+	if err != nil {
+		return nil, normalizeErr(err)
+	}
+	defer rows.Close()
+	var out []*DeviceRow
+	for rows.Next() {
+		var d DeviceRow
+		if err := rows.Scan(&d.ID, &d.WorkspaceID, &d.DeviceName, &d.Platform, &d.LastSeenAt, &d.Status, &d.CreatedAt); err != nil {
+			return nil, normalizeErr(err)
+		}
+		out = append(out, &d)
+	}
+	return out, rows.Err()
 }
 
 var _ = strings.Join

@@ -317,6 +317,32 @@ func TestPushDeviceRevokedAccepted(t *testing.T) {
 	}
 }
 
+// TestDeviceRevokedRequestsRejected 覆盖停用设备立即失效（Todo 40，cloud-server 通道）：
+// devices.status=revoked 后，该设备的 X-Device-ID 请求被拒（HTTP 层校验，401 UNAUTHORIZED）。
+func TestDeviceRevokedRequestsRejected(t *testing.T) {
+	ts := newTestServer(t, testToken)
+	// 先注册设备
+	resp, raw := doReq(t, http.MethodPost, ts.URL+"/v1/devices", testToken, "device-x",
+		map[string]any{"device_id": "device-x", "device_name": "Desktop", "platform": "windows", "app_version": "2.0.0"})
+	mustStatus(t, resp, http.StatusOK, raw)
+	// 推送 device:revoked 操作 → cloud-server 更新 devices 镜像表状态
+	resp, raw = doReq(t, http.MethodPost, ts.URL+"/v1/sync/push", testToken, "device-x",
+		pushReq("ws-revoke", op("op-revoke-1", "device", "device-x", 0, "update", map[string]any{"status": "revoked"})))
+	mustStatus(t, resp, http.StatusOK, raw)
+
+	// 停用后：该设备 X-Device-ID 的后续请求被拒（401 UNAUTHORIZED）
+	resp, raw = doReq(t, http.MethodGet, ts.URL+"/v1/sync/pull?workspace_id=ws-revoke&cursor=0", testToken, "device-x", nil)
+	mustStatus(t, resp, http.StatusUnauthorized, raw)
+	code, _ := errorEnvelope(t, raw)
+	if code != "UNAUTHORIZED" {
+		t.Fatalf("错误码 = %s，期望 UNAUTHORIZED", code)
+	}
+
+	// 其他设备不受影响（仍可正常请求）
+	resp, raw = doReq(t, http.MethodGet, ts.URL+"/v1/sync/pull?workspace_id=ws-revoke&cursor=0", testToken, "device-other", nil)
+	mustStatus(t, resp, http.StatusOK, raw)
+}
+
 // ---- 4.4 拉取变更（游标分页）----
 
 func TestPullCursorPagination(t *testing.T) {

@@ -48,6 +48,25 @@ export interface SyncPushResult {
   server_time: string
 }
 
+export interface SyncDeviceView {
+  device_id: string
+  device_name: string
+  platform: string
+  status: 'active' | 'revoked'
+  last_seen_at: string
+  created_at: string
+}
+
+export interface SyncDeviceListResult {
+  devices: SyncDeviceView[]
+}
+
+export interface SyncDeviceRevokeResult {
+  device_id: string
+  status: 'revoked'
+  revoked_at: string
+}
+
 export interface KnowledgeNode {
   id: string
   name: string

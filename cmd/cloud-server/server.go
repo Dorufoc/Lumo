@@ -79,6 +79,19 @@ func (s *Server) auth(next http.Handler) http.Handler {
 			writeError(w, http.StatusBadRequest, codeInvalidArgument, "缺少 X-Device-ID 请求头")
 			return
 		}
+		// Todo 40：停用设备立即失效——devices.status=revoked 后，该设备 X-Device-ID 请求被拒（HTTP 层校验）。
+		// 未注册设备视为活跃（与本地 in-process 校验语义一致：仅 revoked 被拒）。
+		deviceID := r.Header.Get("X-Device-ID")
+		deviceStatus, err := s.store.DeviceStatus(r.Context(), deviceID)
+		if err != nil {
+			slog.Error("查询设备状态失败", "error", err)
+			writeError(w, http.StatusInternalServerError, codeInternal, "服务器内部错误")
+			return
+		}
+		if deviceStatus == "revoked" {
+			writeError(w, http.StatusUnauthorized, codeUnauthorized, "设备已停用，该设备的同步请求已被拒绝")
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }

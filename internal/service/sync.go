@@ -11,14 +11,15 @@ import (
 	"time"
 
 	"lumo/internal/domain"
+	"lumo/internal/repository"
 )
 
 // DeviceInfo 是设备注册信息。
 type DeviceInfo struct {
-	DeviceID   string `json:"device_id"`
-	DeviceName string `json:"device_name"`
-	Platform   string `json:"platform"`
-	AppVersion string `json:"app_version"`
+	DeviceID     string `json:"device_id"`
+	DeviceName   string `json:"device_name"`
+	Platform     string `json:"platform"`
+	AppVersion   string `json:"app_version"`
 	RegisteredAt string `json:"registered_at"`
 }
 
@@ -33,13 +34,13 @@ type DeviceStatus struct {
 
 // SyncOpDTO 是同步操作 DTO。
 type SyncOpDTO struct {
-	OperationID  string          `json:"operation_id"`
-	EntityType   string          `json:"entity_type"`
-	EntityID     string          `json:"entity_id"`
-	BaseVersion  int             `json:"base_version"`
-	Operation    string          `json:"operation"`
-	Payload      json.RawMessage `json:"payload"`
-	CreatedAt    string          `json:"created_at"`
+	OperationID string          `json:"operation_id"`
+	EntityType  string          `json:"entity_type"`
+	EntityID    string          `json:"entity_id"`
+	BaseVersion int             `json:"base_version"`
+	Operation   string          `json:"operation"`
+	Payload     json.RawMessage `json:"payload"`
+	CreatedAt   string          `json:"created_at"`
 }
 
 // PushItemResult 是逐项推送结果。
@@ -60,10 +61,10 @@ type PushResult struct {
 
 // PullResult 是拉取结果。
 type PullResult struct {
-	Operations  []SyncOpDTO `json:"operations"`
-	NextCursor  int64       `json:"next_cursor"`
-	HasMore     bool        `json:"has_more"`
-	ServerTime  string      `json:"server_time"`
+	Operations []SyncOpDTO `json:"operations"`
+	NextCursor int64       `json:"next_cursor"`
+	HasMore    bool        `json:"has_more"`
+	ServerTime string      `json:"server_time"`
 }
 
 // SyncStatus 是同步状态。
@@ -90,8 +91,8 @@ func (y *SyncService) serverDir() string {
 // ---------- 模拟服务端存储 ----------
 
 type simServerState struct {
-	Devices    map[string]DeviceInfo            `json:"devices"`
-	Workspaces map[string]*simWorkspaceState    `json:"workspaces"`
+	Devices    map[string]DeviceInfo         `json:"devices"`
+	Workspaces map[string]*simWorkspaceState `json:"workspaces"`
 }
 
 type simWorkspaceState struct {
@@ -99,15 +100,15 @@ type simWorkspaceState struct {
 }
 
 type simServerOp struct {
-	OperationID  string          `json:"operation_id"`
-	EntityType   string          `json:"entity_type"`
-	EntityID     string          `json:"entity_id"`
-	BaseVersion  int             `json:"base_version"`
-	Operation    string          `json:"operation"`
-	Payload      json.RawMessage `json:"payload"`
-	ServerSeq    int64           `json:"server_sequence"`
-	ServerVersion int            `json:"server_version"`
-	CreatedAt    string          `json:"created_at"`
+	OperationID   string          `json:"operation_id"`
+	EntityType    string          `json:"entity_type"`
+	EntityID      string          `json:"entity_id"`
+	BaseVersion   int             `json:"base_version"`
+	Operation     string          `json:"operation"`
+	Payload       json.RawMessage `json:"payload"`
+	ServerSeq     int64           `json:"server_sequence"`
+	ServerVersion int             `json:"server_version"`
+	CreatedAt     string          `json:"created_at"`
 }
 
 func (y *SyncService) loadServer() (*simServerState, error) {
@@ -144,13 +145,15 @@ func (y *SyncService) saveServer(st *simServerState) error {
 
 // SyncDeviceRegisterReq 设备注册请求。
 type SyncDeviceRegisterReq struct {
-	DeviceID   string `json:"device_id"`
-	DeviceName string `json:"device_name"`
-	Platform   string `json:"platform"`
-	AppVersion string `json:"app_version"`
+	WorkspaceID string `json:"workspace_id"`
+	DeviceID    string `json:"device_id"`
+	DeviceName  string `json:"device_name"`
+	Platform    string `json:"platform"`
+	AppVersion  string `json:"app_version"`
 }
 
-// SyncDeviceRegister 注册设备（本地模拟服务端）。
+// SyncDeviceRegister 注册设备（本地模拟服务端 + 本地 devices 表，status 权威源）。
+// 幂等：已存在返回 already_registered；已撤销设备不自动恢复（与 cloud-server RegisterDevice 一致）。
 func (y *SyncService) SyncDeviceRegister(ctx context.Context, req SyncDeviceRegisterReq) (*DeviceStatus, error) {
 	if req.DeviceID == "" {
 		return nil, domain.InvalidArg("device_id 必填")
@@ -173,6 +176,20 @@ func (y *SyncService) SyncDeviceRegister(ctx context.Context, req SyncDeviceRegi
 	if err := y.saveServer(st); err != nil {
 		return nil, err
 	}
+	// 本地 devices 表（status 权威源）：仅在工作区场景写入；已撤销设备不自动恢复。
+	if req.WorkspaceID != "" {
+		if err := y.s.assertWorkspace(ctx, req.WorkspaceID); err != nil {
+			return nil, err
+		}
+		if localStatus, err := y.s.Repo.UpsertDevice(ctx, req.WorkspaceID, repository.DeviceRow{
+			ID: req.DeviceID, WorkspaceID: req.WorkspaceID, DeviceName: req.DeviceName,
+			Platform: req.Platform, LastSeenAt: Now(), CreatedAt: Now(),
+		}); err != nil {
+			return nil, err
+		} else if localStatus == "already_registered" {
+			status = "already_registered"
+		}
+	}
 	return &DeviceStatus{
 		DeviceID: req.DeviceID, Status: status,
 		ServerTime: Now(), Workspace: "", Cursor: 0,
@@ -181,8 +198,8 @@ func (y *SyncService) SyncDeviceRegister(ctx context.Context, req SyncDeviceRegi
 
 // SyncPushReq 推送变更请求。
 type SyncPushReq struct {
-	WorkspaceID string       `json:"workspace_id"`
-	Operations  []SyncOpDTO  `json:"operations"`
+	WorkspaceID string      `json:"workspace_id"`
+	Operations  []SyncOpDTO `json:"operations"`
 }
 
 // SyncPush 推送本地变更到模拟服务端（逐项幂等/冲突）。
@@ -255,13 +272,18 @@ func (y *SyncService) SyncPush(ctx context.Context, req SyncPushReq) (*PushResul
 // SyncPullReq 拉取变更请求。
 type SyncPullReq struct {
 	WorkspaceID string `json:"workspace_id"`
-	Cursor      int64  `json:"cursor"`
-	Limit       int    `json:"limit"`
+	// DeviceID 发起拉取的设备（Todo 40：本地双通道校验，revoked 设备被拒）。
+	DeviceID string `json:"device_id"`
+	Cursor   int64  `json:"cursor"`
+	Limit    int    `json:"limit"`
 }
 
 // SyncPull 按游标拉取变更（客户端先本地应用再保存游标）。
 func (y *SyncService) SyncPull(ctx context.Context, req SyncPullReq) (*PullResult, error) {
 	if err := y.s.assertWorkspace(ctx, req.WorkspaceID); err != nil {
+		return nil, err
+	}
+	if err := y.checkDeviceActive(ctx, req.WorkspaceID, req.DeviceID); err != nil {
 		return nil, err
 	}
 	y.mu.Lock()
@@ -306,12 +328,33 @@ func (y *SyncService) SyncPull(ctx context.Context, req SyncPullReq) (*PullResul
 // SyncPushLocalReq 推送本地队列请求。
 type SyncPushLocalReq struct {
 	WorkspaceID string `json:"workspace_id"`
+	// DeviceID 发起推送的设备（Todo 40：本地双通道校验，revoked 设备被拒）。
+	DeviceID string `json:"device_id"`
+}
+
+// checkDeviceActive 校验设备未被停用（Todo 40 本地双通道校验，镜像 cloud-server auth 语义）。
+// 未注册设备视为活跃（与 cloud-server 一致：仅 revoked 被拒）；空 DeviceID 跳过（既有调用兼容）。
+func (y *SyncService) checkDeviceActive(ctx context.Context, wsID, deviceID string) error {
+	if deviceID == "" {
+		return nil
+	}
+	status, err := y.s.Repo.GetDeviceStatus(ctx, deviceID)
+	if err != nil {
+		return err
+	}
+	if status == "revoked" {
+		return domain.Unauthorized("设备已停用（devices.status=revoked），拒绝同步")
+	}
+	return nil
 }
 
 // SyncPushLocal 便捷推送：读取本地 pending 队列并推送到模拟服务端。
 func (y *SyncService) SyncPushLocal(ctx context.Context, req SyncPushLocalReq) (*PushResult, error) {
 	wsID := req.WorkspaceID
 	if err := y.s.assertWorkspace(ctx, wsID); err != nil {
+		return nil, err
+	}
+	if err := y.checkDeviceActive(ctx, wsID, req.DeviceID); err != nil {
 		return nil, err
 	}
 	ops, err := y.s.Repo.ListPendingSyncOps(ctx, wsID, 500)
@@ -374,6 +417,98 @@ func (y *SyncService) SyncStatusGet(ctx context.Context, req SyncStatusGetReq) (
 // RecordReviewSyncOp 记录复习卡变更（示例业务埋点）。
 func (y *SyncService) RecordReviewSyncOp(ctx context.Context, wsID, cardID string, version int, payload any) error {
 	return y.s.Repo.RecordSyncOp(ctx, wsID, "review_card", cardID, "update", version, payload)
+}
+
+// DeviceView 是设备管理视图（本地 devices 表，status 权威源）。
+type DeviceView struct {
+	DeviceID   string `json:"device_id"`
+	DeviceName string `json:"device_name"`
+	Platform   string `json:"platform"`
+	Status     string `json:"status"` // active | revoked
+	LastSeenAt string `json:"last_seen_at"`
+	CreatedAt  string `json:"created_at"`
+}
+
+// SyncDeviceListReq 设备列表请求。
+type SyncDeviceListReq struct {
+	WorkspaceID string `json:"workspace_id"`
+}
+
+// SyncDeviceListResult 设备列表结果。
+type SyncDeviceListResult struct {
+	Devices []DeviceView `json:"devices"`
+}
+
+// SyncDeviceList 列出工作区设备（本地 devices 表；revoked 状态仍返回供前端展示）。
+func (y *SyncService) SyncDeviceList(ctx context.Context, req SyncDeviceListReq) (*SyncDeviceListResult, error) {
+	if err := y.s.assertWorkspace(ctx, req.WorkspaceID); err != nil {
+		return nil, err
+	}
+	rows, err := y.s.Repo.ListDevices(ctx, req.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := &SyncDeviceListResult{Devices: make([]DeviceView, 0, len(rows))}
+	for _, d := range rows {
+		out.Devices = append(out.Devices, DeviceView{
+			DeviceID: d.ID, DeviceName: d.DeviceName, Platform: d.Platform,
+			Status: d.Status, LastSeenAt: d.LastSeenAt, CreatedAt: d.CreatedAt,
+		})
+	}
+	return out, nil
+}
+
+// SyncDeviceRevokeReq 停用设备请求。
+type SyncDeviceRevokeReq struct {
+	WorkspaceID string `json:"workspace_id"`
+	DeviceID    string `json:"device_id"`
+}
+
+// SyncDeviceRevokeResult 停用结果。
+type SyncDeviceRevokeResult struct {
+	DeviceID  string `json:"device_id"`
+	Status    string `json:"status"` // revoked
+	RevokedAt string `json:"revoked_at"`
+}
+
+// SyncDeviceRevoke 停用设备（本地 devices.status=revoked + 写入 device:revoked 同步操作）。
+// 停用立即失效（双通道）：
+//   - 本地 in-process：SyncPushLocal/SyncPull 校验 device_id 状态，revoked → UNAUTHORIZED；
+//   - cloud-server：device:revoked 操作经 SyncPushLocal/SyncCloudPush 推送，
+//     cloud-server PushOps 更新其 devices 镜像表，后续 X-Device-ID 请求被拒。
+func (y *SyncService) SyncDeviceRevoke(ctx context.Context, req SyncDeviceRevokeReq) (*SyncDeviceRevokeResult, error) {
+	if err := y.s.assertWorkspace(ctx, req.WorkspaceID); err != nil {
+		return nil, err
+	}
+	if req.DeviceID == "" {
+		return nil, domain.InvalidArg("device_id 必填")
+	}
+	status, err := y.s.Repo.GetDeviceStatus(ctx, req.DeviceID)
+	if err != nil {
+		return nil, err
+	}
+	if status == "" {
+		return nil, domain.NotFound("设备 %s 不存在", req.DeviceID)
+	}
+	now := Now()
+	if status != "revoked" {
+		if err := y.s.Repo.SetDeviceStatus(ctx, req.DeviceID, "revoked"); err != nil {
+			return nil, err
+		}
+		// 撤销传播机制：本地停用设备时经 POST /v1/sync/push 发送 device:revoked 操作
+		// （entity_type=device, entity_id=设备 id, operation=update, payload 含 status=revoked）。
+		op := &repository.SyncOpRow{
+			OperationID: NewID(), DeviceID: "local-device", WorkspaceID: req.WorkspaceID,
+			EntityType: "device", EntityID: req.DeviceID, BaseVersion: 1,
+			Operation: "update", Payload: json.RawMessage(`{"status":"revoked"}`),
+		}
+		if err := y.s.Repo.CreateSyncOp(ctx, op); err != nil {
+			return nil, err
+		}
+	}
+	y.s.audit(ctx, req.WorkspaceID, "sync.device_revoke", "device", req.DeviceID,
+		map[string]any{"device_name": status})
+	return &SyncDeviceRevokeResult{DeviceID: req.DeviceID, Status: "revoked", RevokedAt: now}, nil
 }
 
 var _ = fmt.Sprintf

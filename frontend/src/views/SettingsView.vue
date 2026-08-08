@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { call, localizedMessageOf } from '@/api/client'
 import { familyInviteCreate, familyInviteGet, familyUnbind } from '@/api/family'
-import type { FamilyOverview, Settings, SyncPushResult } from '@/api/types'
+import type { FamilyOverview, Settings, SyncDeviceListResult, SyncDeviceRevokeResult, SyncDeviceView, SyncPushResult } from '@/api/types'
 import { useI18nStore } from '@/stores/i18n'
 import { useSessionStore } from '@/stores/session'
 
@@ -10,7 +10,7 @@ const session = useSessionStore()
 const i18n = useI18nStore()
 
 const isStudent = computed(() => session.user?.role === 'student')
-const tab = ref<'model' | 'data' | 'family'>('model')
+const tab = ref<'model' | 'data' | 'devices' | 'family'>('model')
 const error = ref('')
 const info = ref('')
 
@@ -111,6 +111,7 @@ async function doSync() {
   error.value = ''
   try {
     await call('SyncDeviceRegister', {
+      workspace_id: session.workspaceId,
       device_id: 'local-web',
       device_name: i18n.t('settings.deviceName'),
       platform: 'web',
@@ -169,6 +170,52 @@ async function toggleCloudMode() {
     error.value = localizedMessageOf(e)
   } finally {
     cloudSaving.value = false
+  }
+}
+
+// ---------- 设备管理（Todo 40：桌面-移动协同）----------
+const devices = ref<SyncDeviceView[]>([])
+const devicesLoading = ref(false)
+const revokingDevice = ref('')
+
+async function loadDevices() {
+  devicesLoading.value = true
+  error.value = ''
+  try {
+    const r = await call<SyncDeviceListResult>('SyncDeviceList', { workspace_id: session.workspaceId })
+    devices.value = r?.devices ?? []
+  } catch (e) {
+    error.value = localizedMessageOf(e)
+  } finally {
+    devicesLoading.value = false
+  }
+}
+
+async function doRevokeDevice(d: SyncDeviceView) {
+  if (!window.confirm(i18n.t('settings.deviceRevokeConfirm', { name: d.device_name }))) return
+  revokingDevice.value = d.device_id
+  error.value = ''
+  info.value = ''
+  try {
+    await call<SyncDeviceRevokeResult>('SyncDeviceRevoke', {
+      workspace_id: session.workspaceId,
+      device_id: d.device_id,
+    })
+    info.value = i18n.t('settings.deviceRevoked', { name: d.device_name })
+    await loadDevices()
+  } catch (e) {
+    error.value = localizedMessageOf(e)
+  } finally {
+    revokingDevice.value = ''
+  }
+}
+
+function formatLastSeen(ts: string): string {
+  if (!ts) return '–'
+  try {
+    return new Date(ts).toLocaleString()
+  } catch {
+    return ts
   }
 }
 
@@ -318,6 +365,7 @@ function formatExpires(expiresAt: string): string {
 onMounted(() => {
   void loadSettings()
   void loadSyncStatus()
+  void loadDevices()
   loadCloudStatus()
   if (isStudent.value) void loadFamily()
 })
@@ -341,6 +389,7 @@ onMounted(() => {
     <div class="tabs">
       <div class="tab" :class="{ active: tab === 'model' }" @click="tab = 'model'">{{ $t('settings.tabModel') }}</div>
       <div class="tab" :class="{ active: tab === 'data' }" @click="tab = 'data'">{{ $t('settings.tabData') }}</div>
+      <div class="tab" :class="{ active: tab === 'devices' }" @click="tab = 'devices'">{{ $t('settings.tabDevices') }}</div>
       <div v-if="isStudent" class="tab" :class="{ active: tab === 'family' }" @click="tab = 'family'">
         {{ $t('family.tabStudent') }}
       </div>
@@ -616,6 +665,39 @@ onMounted(() => {
       </div>
     </template>
 
+    <!-- 设备管理（Todo 40：桌面-移动协同；本地 devices 表为 status 权威源） -->
+    <template v-if="tab === 'devices'">
+      <div class="card">
+        <div class="card-title">{{ $t('settings.deviceTitle') }}</div>
+        <p class="text-secondary mb-3">{{ $t('settings.deviceHint') }}</p>
+        <div v-if="devicesLoading" class="hint">{{ $t('common.loading') }}</div>
+        <div v-else-if="devices.length === 0" class="hint">{{ $t('settings.deviceEmpty') }}</div>
+        <div v-else class="device-list">
+          <div v-for="d in devices" :key="d.device_id" class="device-row">
+            <div class="device-info">
+              <div class="device-name">
+                {{ d.device_name || d.device_id }}
+                <span v-if="d.device_id === 'local-web'" class="badge badge-primary">{{ $t('settings.deviceCurrent') }}</span>
+              </div>
+              <div class="device-meta">
+                {{ d.platform || '—' }} · {{ formatLastSeen(d.last_seen_at) }}
+              </div>
+            </div>
+            <span class="badge" :class="d.status === 'active' ? 'badge-success' : 'badge-error'">
+              {{ d.status === 'active' ? $t('settings.deviceActive') : $t('settings.deviceRevokedStatus') }}
+            </span>
+            <button
+              class="btn btn-sm btn-danger"
+              :disabled="d.status === 'revoked' || d.device_id === 'local-web' || revokingDevice === d.device_id"
+              @click="doRevokeDevice(d)"
+            >
+              {{ revokingDevice === d.device_id ? $t('settings.deviceRevoking') : $t('settings.deviceRevoke') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
+
     <!-- 家庭（学生端） -->
     <template v-if="tab === 'family'">
       <div class="card">
@@ -686,5 +768,41 @@ onMounted(() => {
   flex: 1;
   min-width: 0;
   font-weight: 500;
+}
+
+.device-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.device-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.device-row:last-child {
+  border-bottom: none;
+}
+
+.device-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.device-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-weight: 500;
+}
+
+.device-meta {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-top: 2px;
 }
 </style>
