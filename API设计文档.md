@@ -198,9 +198,12 @@
 | `ProviderConfigure` | `workspace_id`, `provider`(`llm`/`embedding`), `kind`(`openai`/`mock`), `base_url`, `api_key`, `model`, `enabled` | `provider_status` | 写入 Provider 配置（密钥仅存本地 secrets 文件，不回读；api_key 留空保留旧值） |
 | `ProviderClear` | `workspace_id`, `provider` | `provider_status` | 删除 Provider 配置 |
 | `SyncDeviceRegister` | `device_id`, `device_name`, `platform`, `app_version` | `DeviceStatus` | 设备注册（本地模拟服务端，幂等） |
-| `SyncPush` | `workspace_id` | `PushResult` | 推送本地 pending 变更队列（逐项 `accepted`/`duplicate`/`conflict`，冲突返回冲突副本） |
-| `SyncPull` | `workspace_id`, `cursor`, `limit` | `PullResult` | 按游标拉取变更（客户端先应用再保存游标） |
+| `SyncDeviceList` | `workspace_id` | `SyncDeviceListResult`（`devices[]`，含 revoked） | 列出工作区设备 |
+| `SyncDeviceRevoke` | `workspace_id`, `device_id` | `SyncDeviceRevokeResult` | 停用设备（本地 `status=revoked` + 写入 `device:revoked` 同步操作；本地/云双通道立即拒绝） |
+| `SyncPush` | `workspace_id`, `device_id` | `PushResult` | 推送本地 pending 变更队列（逐项 `accepted`/`duplicate`/`conflict`，冲突返回冲突副本；revoked 设备返回 `UNAUTHORIZED`） |
+| `SyncPull` | `workspace_id`, `device_id`, `cursor`, `limit` | `PullResult` | 按游标拉取变更（客户端先应用再保存游标；revoked 设备返回 `UNAUTHORIZED`） |
 | `SyncStatusGet` | `workspace_id` | `SyncStatus`（`pending_count`/`state`/`last_error`） | 同步状态 |
+| `SyncCloudPush` | `workspace_id`, `user_id` | `PushResult` | 云同步推送（配置 token 时发送到独立 cloud-server；未配置回退 in-process） |
 
 ### 2.8 传输层端点（新增）
 
@@ -283,6 +286,8 @@ Content-Type: application/json
 
 响应逐项返回 `accepted`、`duplicate`、`conflict` 或 `rejected`，以及 `server_sequence`、`server_version` 和冲突副本。任一操作失败不能回滚已接受操作。
 
+> 设备停用语义：已停用设备（`devices.status=revoked`）发起的 push/pull 请求一律被拒——服务端校验 `X-Device-ID` 头命中 revoked 状态时返回 `401 UNAUTHORIZED`（4.3/4.4 均生效）。
+
 ### 4.4 拉取变更
 
 `GET /v1/sync/pull?workspace_id={id}&cursor={cursor}&limit=200`
@@ -357,6 +362,8 @@ Content-Type: application/json
 | `NoteToFlashcard` | `note_id`, `idempotency_key` | `Flashcard` |
 | `AnnotationCreate` | `note_id`, `document_id`, `anchor_hash`, `offset_start/end`, `highlight_color` | `Annotation` |
 
+> 请求体新增 `user_id` 字段（服务端身份来源）：`NoteCreate`、`NoteToFlashcard`。
+
 ### 7.2 闪卡（4.9）
 
 | 方法 | 请求要点 | 返回 |
@@ -369,6 +376,8 @@ Content-Type: application/json
 | `FlashcardImportCsv` | `file_path`, `idempotency_key` | `ImportBatch`（行级错误） |
 | `FlashcardExportAnki` | `idempotency_key` | `ExportResult`（`.apkg`） |
 
+> 请求体新增 `user_id` 字段（服务端身份来源）：`FlashcardCreate`、`FlashcardGenerate`、`FlashcardListDue`、`FlashcardImportCsv`。
+
 ### 7.3 组卷与考试（4.10）
 
 | 方法 | 请求要点 | 返回 |
@@ -376,9 +385,12 @@ Content-Type: application/json
 | `ExamPaperCreate` | `title`, `config_json`, `idempotency_key` | `ExamPaper` |
 | `ExamPaperAutoGenerate` | `title`, `config{knowledge_ratio, difficulty_dist, count, types}`, `idempotency_key` | `ExamPaper` |
 | `ExamPaperPublish` | `paper_id`, `version` | `ExamPaper` |
+| `ExamPaperList` | `workspace_id` | `ExamPaper[]`（前端选择试卷入口） |
 | `ExamStart` | `paper_id`, `idempotency_key` | `Exam`（锁定题目顺序/时长） |
 | `ExamAutoSubmit` | `exam_id` | `ExamResult`（倒计时到期自动提交） |
 | `ExamGetResult` | `exam_id` | `ExamResult`（成绩/复盘/错题入队列） |
+
+> 请求体新增 `user_id` 字段（服务端身份来源）：`ExamPaperCreate`、`ExamPaperAutoGenerate`、`ExamStart`。
 
 ### 7.4 打卡、成就与习惯（4.11）
 
@@ -389,6 +401,8 @@ Content-Type: application/json
 | `AchievementList` | - | `AchievementView`（已解锁/未解锁） |
 | `StreakGet` | - | `Streak`（连续天数/总打卡） |
 
+> 请求体新增 `user_id` 字段（服务端身份来源）：`CheckinCreate`、`CheckinMakeup`、`AchievementList`、`StreakGet`。
+
 ### 7.5 报告（4.12）
 
 | 方法 | 请求要点 | 返回 |
@@ -398,6 +412,8 @@ Content-Type: application/json
 | `ReportExport` | `report_id`, `format[pdf|json]` | `ExportResult`（经 `GET /api/v1/files` 下载） |
 | `InsightGet` | `user_id`, `dimension[knowledge|time|trend]` | `Insight` |
 
+> 请求体新增 `user_id` 字段（服务端身份来源）：`ReportGenerate`、`ReportList`、`InsightGet`。
+
 ### 7.6 专注计时（4.13）
 
 | 方法 | 请求要点 | 返回 |
@@ -405,6 +421,8 @@ Content-Type: application/json
 | `TimerStart` | `mode[pomodoro|free]`, `planned_minutes`, `task_id`, `idempotency_key` | `TimerSession`（同用户单活动计时） |
 | `TimerEnd` | `session_id`, `interrupt_reason` | `TimerSession` |
 | `TimerStats` | `date_range` | `TimerStats`（时长/轮次/中断率） |
+
+> 请求体新增 `user_id` 字段（服务端身份来源）：`TimerStart`、`TimerEnd`、`TimerStats`。
 
 ### 7.7 提醒与通知（4.14）
 
@@ -414,6 +432,8 @@ Content-Type: application/json
 | `ReminderTestSend` | `kind` | `TestResult` |
 | `NotificationList` | `unread_only`, `cursor`, `limit` | `NotificationPage` |
 | `NotificationMarkRead` | `ids[]` | `BatchResult` |
+
+> 请求体新增 `user_id` 字段（服务端身份来源）：`ReminderUpsert`、`ReminderTestSend`、`NotificationList`、`NotificationMarkRead`。
 
 ### 7.8 收藏与稍后读（4.15）
 
@@ -425,6 +445,8 @@ Content-Type: application/json
 | `ReadLaterTransition` | `item_id`, `action[read|skip|requeue]` | `ReadLaterItem` |
 | `DocumentSummarize` | `document_id`, `idempotency_key` | `DocumentSummary`（异步） |
 
+> 请求体新增 `user_id` 字段（服务端身份来源）：`FavoriteToggle`、`FavoriteList`、`ReadLaterAdd`、`ReadLaterTransition`。
+
 ### 7.9 日历与目标拆解（4.16）
 
 | 方法 | 请求要点 | 返回 |
@@ -434,14 +456,20 @@ Content-Type: application/json
 | `MilestoneCreate` | `goal_id`, `title`, `due_at`, `criteria_json` | `Milestone` |
 | `MilestoneEvaluate` | `milestone_id` | `Milestone`（服务端判定达成） |
 
+> 请求体新增 `user_id` 字段（服务端身份来源）：`CalendarGetMonth`、`CalendarEventUpsert`、`MilestoneCreate`、`MilestoneEvaluate`。
+
 ### 7.10 家庭绑定（4.21）
 
 | 方法 | 请求要点 | 返回 |
 |---|---|---|
 | `FamilyInviteCreate` | `idempotency_key` | `InviteCode`（24h 有效） |
+| `FamilyInviteGet` | - | `FamilyOverview`（`invite` + `active_parents` + `bindings[]`） |
 | `FamilyBind` | `invite_code` | `FamilyBinding` |
 | `FamilyUnbind` | `binding_id`, `version` | `DeleteResult` |
 | `ParentSettingsUpdate` | `student_user_id`, `daily_limit_min`, `ai_disabled`, `report_enabled` | `ParentSettings` |
+| `FamilyViewGet` | `student_user_id`（空=全部已绑定学生） | `FamilyViewItem[]`（学习时长/连续天数/打卡/任务/准确率/薄弱/设置） |
+
+> 请求体新增 `user_id` 字段（服务端身份来源）：`FamilyInviteCreate`、`FamilyInviteGet`、`FamilyBind`、`FamilyUnbind`、`ParentSettingsUpdate`、`FamilyViewGet`。
 
 ### 7.11 教师端（4.22）
 
@@ -463,7 +491,14 @@ Content-Type: application/json
 | `AssignmentGrade` | `submission_id`, `grade_json?`, `version`, `pre_grade?`（教师） | `AssignmentSubmission` |
 | `AppealCreate` | `grading_id`, `reason` | `Appeal` |
 | `AppealResolve` | `appeal_id`, `decision` | `Appeal` |
+| `AppealList` | `assignment_id` | `Appeal[]`（申诉记录，按作业过滤） |
 | `ClassStats` | `class_id`, `assignment_id?` | `ClassStats`（完成率/均分/薄弱 Top） |
+| `OrgWorkspaceUpdate` | `org_name`, `org_admin_user_id` | `Workspace`（组织化，`owner_type`→`org`） |
+| `OrgClassList` | - | `Class[]`（组织内全部班级） |
+| `OrgClassAssignTeacher` | `class_id`, `teacher_user_id` | `Class` |
+| `OrgTeacherList` | - | `UserProfile[]`（组织内教师） |
+
+> 请求体新增 `user_id` 字段（服务端身份来源）：`ClassCreate`、`ClassList`、`ClassGet`、`ClassUpdate`、`ClassArchive`、`ClassInvite`、`ClassMemberAdd`、`ClassMemberRemove`、`ClassMemberList`、`AssignmentCreate`、`AssignmentPublish`、`AssignmentSubmit`、`AssignmentList`、`AssignmentSubmissionList`、`AssignmentGrade`、`AppealCreate`、`AppealResolve`、`AppealList`、`ClassStats`、`OrgWorkspaceUpdate`、`OrgClassList`、`OrgClassAssignTeacher`、`OrgTeacherList`。
 
 ### 7.12 管理端（4.23）
 
@@ -485,11 +520,18 @@ Content-Type: application/json
 | `PluginUninstall` | `plugin_id` | `DeleteResult` |
 | `PluginMarketList` | 无参 | `PluginMarketItem[]`（市场目录 = 已安装插件，含描述/权限 DTO） |
 | `PluginThemeGet` | `plugin_id` | `PluginThemeGetResp`（沙箱执行主题插件，返回校验后 tokens） |
+| `PluginConfirmPermissions` | `plugin_id`, `permissions[]`（须为 manifest 已声明子集） | `Plugin` |
+| `PluginInvoke` | `plugin_id`, `method`（缺省 `run`）, `params` | `PluginInvokeResult`（`ok`/`result`/`error`） |
+| `PluginList` | 无参 | `Plugin[]` |
 | `ShareCreate` | `ref_type`, `ref_id`, `ttl_days`, `idempotency_key` | `Share`（强制安全扫描） |
 | `ShareRevoke` | `share_id` | `DeleteResult` |
+| `ShareResolve` | `token` | `ShareResolveResult`（`share` + `download_path`） |
 | `WebhookSubscribe` | `url`, `event_types[]`, `idempotency_key` | `WebhookSubscription` |
 | `WebhookTestSend` | `subscription_id` | `TestResult` |
 | `WebhookDelete` | `subscription_id` | `DeleteResult` |
+| `WebhookList` | `workspace_id` | `WebhookSubscription[]` |
+
+> 请求体新增 `user_id` 字段（服务端身份来源）：`ShareCreate`、`ShareRevoke`。
 
 ### 7.14 扩展事件（追加到第 3 节事件表）
 
@@ -524,4 +566,24 @@ Content-Type: application/json
 | `MasterySnapshotList` | `user_id`, `knowledge_id?`, `cursor` | `MasterySnapshotPage` |
 | `MasteryExplain` | `user_id`, `knowledge_id` | `MasteryExplanation`（口径 + 证据样本） |
 
+> 请求体新增 `user_id` 字段（服务端身份来源）：`HealthSettingsUpdate`、`HealthStatsGet`、`MasterySnapshotList`、`MasteryExplain`。
+
 > `TTSPlay`/`SpeakingSubmit` 仅在启用对应 Provider 时可用；未配置时返回 `FEATURE_DISABLED` 且前端隐藏入口。
+
+### 7.17 社区与求题（4.20）
+
+本地内容社区：帖子存 `<DataDir>/community/*.json`（本地共享，非云端）。求题闭环状态机 `open|fulfilled|closed`。
+
+| 方法 | 请求要点 | 返回 |
+|---|---|---|
+| `CommunityPostCreate` | `author_user_id`, `title`, `body_md` | `CommunityPost` |
+| `CommunityPostList` | - | `CommunityPost[]` |
+| `CommunityPostGet` | `post_id` | `CommunityPost` |
+| `CommunityPostLike` | `post_id` | `CommunityPostLikeResp`（`post_id`, `likes`） |
+| `ContentRequestCreate` | `knowledge_ids[]`, `description`, `idempotency_key` | `ContentRequest` |
+| `ContentRequestGenerate` | `request_id`, `count`, `idempotency_key` | `ContentRequest`（异步出题，`question:published` 事件） |
+| `ContentRequestReview` | `request_id`, `decision[approved|rejected]`, `reason` | `ContentRequest` |
+| `ContentRequestCancel` | `request_id` | `ContentRequest` |
+| `ContentRequestList` | `user_id?` | `ContentRequest[]` |
+
+> 请求体新增 `user_id` 字段（服务端身份来源）：`ContentRequestCreate`、`ContentRequestGenerate`、`ContentRequestReview`、`ContentRequestCancel`、`ContentRequestList`。
