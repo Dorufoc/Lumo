@@ -210,10 +210,10 @@ onMounted(load)
       <div class="grid grid-2 mb-4">
         <div class="card">
           <div class="card-title">{{ $t('report.weakTitle') }}</div>
-          <div v-if="latestPayload.weak_knowledge.length === 0" class="empty">{{ $t('report.weakEmpty') }}</div>
+          <div v-if="(latestPayload.weak_knowledge ?? []).length === 0" class="empty">{{ $t('report.weakEmpty') }}</div>
           <table v-else class="table">
             <tbody>
-              <tr v-for="w in latestPayload.weak_knowledge" :key="w.knowledge_id">
+              <tr v-for="w in latestPayload.weak_knowledge ?? []" :key="w.knowledge_id">
                 <td>{{ w.name }}</td>
                 <td class="right">
                   <span class="badge badge-error">{{ w.wrong_count }}</span>
@@ -224,8 +224,8 @@ onMounted(load)
         </div>
         <div class="card">
           <div class="card-title">{{ $t('report.suggestTitle') }}</div>
-          <ul v-if="latestPayload.suggestions.length > 0" class="text-secondary" style="padding-left: 20px">
-            <li v-for="(sg, i) in latestPayload.suggestions" :key="i">{{ sg }}</li>
+          <ul v-if="(latestPayload.suggestions ?? []).length > 0" class="text-secondary" style="padding-left: 20px">
+            <li v-for="(sg, i) in latestPayload.suggestions ?? []" :key="i">{{ sg }}</li>
           </ul>
           <div v-else class="empty">{{ $t('report.suggestEmpty') }}</div>
         </div>

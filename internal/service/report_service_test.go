@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -173,6 +174,56 @@ func TestReportGenerateReadyPublishesEvent(t *testing.T) {
 	// report:ready 事件 → notifications 落库一条
 	if n := reportNotificationCount(t, s, userID, "report:ready"); n != 1 {
 		t.Fatalf("expected 1 report:ready notification, got %d", n)
+	}
+}
+
+// ---- 场景 2.5：空工作区载荷契约 —— 切片序列化为 [] 而非 null ----
+
+func TestReportGenerateEmptyPayloadSlices(t *testing.T) {
+	s, _ := newTestServices(t)
+	ws, userID := createWorkspace(t, s)
+	now, clock := reportFixedNow()
+	s.Report.Now = clock
+	today := reportToday(*now)
+
+	rep, err := s.Report.ReportGenerate(ctx(), ReportGenerateReq{
+		WorkspaceID: ws.ID, UserID: userID, Period: domain.ReportPeriodDaily,
+		PeriodStart: today, PeriodEnd: today, IdempotencyKey: "rg-" + NewID(),
+	})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	if rep.Status != domain.ReportStatusReady {
+		t.Fatalf("expected ready, got %s", rep.Status)
+	}
+
+	// 契约：新工作区载荷中 weak_knowledge/trend/suggestions 必须是非 nil 空切片（JSON `[]`），而非 null。
+	// （前端 `.length` / v-for 直接消费，null 会触发白屏崩溃。）
+	var pl domain.ReportPayload
+	if err := json.Unmarshal(rep.Payload, &pl); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if pl.WeakKnowledge == nil {
+		t.Fatal("weak_knowledge should be non-nil empty slice, not null")
+	}
+	if pl.Trend == nil {
+		t.Fatal("trend should be non-nil empty slice, not null")
+	}
+	if pl.Suggestions == nil {
+		t.Fatal("suggestions should be non-nil slice, not null")
+	}
+	for _, key := range []string{"weak_knowledge", "trend", "suggestions"} {
+		if bytes.Contains(rep.Payload, []byte(`"`+key+`":null`)) {
+			t.Fatalf("%s should not marshal to null: %s", key, rep.Payload)
+		}
+	}
+	for _, key := range []string{"weak_knowledge", "trend"} {
+		if !bytes.Contains(rep.Payload, []byte(`"`+key+`":[]`)) {
+			t.Fatalf("%s should marshal to [] not null: %s", key, rep.Payload)
+		}
+	}
+	if !bytes.Contains(rep.Payload, []byte(`"suggestions":[`)) {
+		t.Fatalf("suggestions should marshal to an array, got: %s", rep.Payload)
 	}
 }
 

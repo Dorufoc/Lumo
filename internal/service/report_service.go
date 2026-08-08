@@ -126,6 +126,9 @@ func (r *ReportService) generateReport(ctx context.Context, req ReportGenerateRe
 		payload = &domain.ReportPayload{
 			Period: req.Period, PeriodStart: row.PeriodStart, PeriodEnd: row.PeriodEnd,
 			GeneratedAt: now.Format(time.RFC3339), SchemaVersion: "2.0.0",
+			WeakKnowledge: []domain.WeakKnowledgeItem{},
+			Trend:         []domain.TrendPoint{},
+			Suggestions:   []string{},
 		}
 		status = domain.ReportStatusFailed
 	}
@@ -554,7 +557,7 @@ func queryWeakKnowledge(ctx context.Context, db *sql.DB, wsID, userID, startStr,
 		return nil, dbErr(err)
 	}
 	defer rows.Close()
-	var out []domain.WeakKnowledgeItem
+	out := make([]domain.WeakKnowledgeItem, 0)
 	for rows.Next() {
 		var wk domain.WeakKnowledgeItem
 		if err := rows.Scan(&wk.KnowledgeID, &wk.Name, &wk.WrongCount); err != nil {
@@ -586,7 +589,7 @@ func queryTrend(ctx context.Context, db *sql.DB, wsID, userID, startStr, endStr 
 		return nil, dbErr(err)
 	}
 	defer rows.Close()
-	var out []domain.TrendPoint
+	out := make([]domain.TrendPoint, 0)
 	for rows.Next() {
 		var tp domain.TrendPoint
 		var correct int
@@ -676,7 +679,7 @@ func queryInterruptReasons(ctx context.Context, db *sql.DB, wsID, userID, startS
 
 // buildReportSuggestions 基于聚合结果生成确定性建议。
 func buildReportSuggestions(summary domain.ReportSummary, weak []domain.WeakKnowledgeItem) []string {
-	var out []string
+	out := make([]string, 0)
 	if summary.ReviewDue > 0 {
 		out = append(out, fmt.Sprintf("有 %d 张复习卡到期，建议优先完成复习（间隔记忆效果最佳）。", summary.ReviewDue))
 	}
